@@ -22,7 +22,7 @@ namespace K2ExtractionLibrary.DAL
             _connectionString = ConfigurationManager.ConnectionStrings["DefaultConnString"].ToString();
         }
 
-        public string GetLastUserFromReferenceNo(string referenceNo, string nameSpace)
+        public string GetLastUserFromReferenceNo(string referenceNo, string workflowType)
         {
             string result = string.Empty;
             objDB = new SqlDatabase(_connectionString);
@@ -30,7 +30,7 @@ namespace K2ExtractionLibrary.DAL
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_GetLastUserFromReferenceNo"))
             {
                 objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, referenceNo);
-                objDB.AddInParameter(objCmd, "@Namespace", DbType.String, nameSpace);
+                objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);
                 objDB.AddOutParameter(objCmd, "@UserLogID", DbType.String, 20);
 
                 try
@@ -47,7 +47,7 @@ namespace K2ExtractionLibrary.DAL
             return result;
         }        
 
-        public Int32 ProcessWTWorkflowTaskDataPIC(WTWorkflowTaskDataEntities param, string nameSpaceModul)
+        public Int32 ProcessWTWorkflowTaskDataPIC(WTWorkflowTaskDataEntities param, string workflowType)
         {
             Int32 procInstId = 0;
             objDB = new SqlDatabase(_connectionString);
@@ -61,7 +61,7 @@ namespace K2ExtractionLibrary.DAL
                 objDB.AddInParameter(objCmd, "@Folio", DbType.String, param.Folio);
                 objDB.AddInParameter(objCmd, "@Originator", DbType.String, param.Originator);
                 objDB.AddInParameter(objCmd, "@Status", DbType.String, param.Status);
-                objDB.AddInParameter(objCmd, "@Namespace", DbType.String, nameSpaceModul);
+                objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);
 
                 try
                 {
@@ -76,7 +76,7 @@ namespace K2ExtractionLibrary.DAL
             return procInstId;
         }
 
-        public void InsertWTWorkflowDataField(WTWorkflowDataFieldEntities param, string nameSpaceModul)
+        public void InsertWTWorkflowDataField(WTWorkflowDataFieldEntities param, string workflowType)
         {
             objDB = new SqlDatabase(_connectionString);
 
@@ -85,7 +85,7 @@ namespace K2ExtractionLibrary.DAL
                 objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, param.ReferenceNo);
                 objDB.AddInParameter(objCmd, "@DataFieldName", DbType.String, param.DataFieldName);
                 objDB.AddInParameter(objCmd, "@DataFIeldValue", DbType.String, param.DataFieldValue);
-                objDB.AddInParameter(objCmd, "@Namespace", DbType.String, nameSpaceModul);
+                objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);
 
                 try
                 {
@@ -98,7 +98,7 @@ namespace K2ExtractionLibrary.DAL
             }            
         }
 
-        public IList<WorkflowDataProcessedEntities> WorkflowTaskDataProcessed()
+        public IList<WorkflowDataProcessedEntities> WorkflowTaskDataProcessed(string workflowType)
         {
             IDataReader reader = null;
             IList<WorkflowDataProcessedEntities> rows = null;
@@ -107,6 +107,8 @@ namespace K2ExtractionLibrary.DAL
 
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_WorkflowTaskDataProcessed"))
             {
+                objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);                
+
                 try
                 {
                     reader = objDB.ExecuteReader(objCmd);

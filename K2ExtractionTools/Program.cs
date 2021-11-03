@@ -19,7 +19,8 @@ namespace K2ExtractionTools
         
         private const string PERCENT = "%";
         private const string PREFIX_K2USER = "K2:";
-        private const string POLICY_NAMESPACE = "Policy";
+        private const string POLICY_WORKFLOW = "Policy";
+        private const string CLAIM_WORKFLOW = "Claim";
 
         public Program()
         {
@@ -33,9 +34,14 @@ namespace K2ExtractionTools
         }
 
         static void Main(string[] args)
-        {            
-            LoadConfiguration();
-            ProcessK2Data();
+        {
+            if (args.Length > 0)
+            {
+                string workflowType = args[0].ToLower();
+
+                LoadConfiguration();
+                ProcessK2Data(workflowType);
+            }
         }
 
         private static void LoadConfiguration()
@@ -71,41 +77,56 @@ namespace K2ExtractionTools
             }
         }
 
-        private string GetLastUserFromReferenceNo(string referenceNo)
+        #region Non Static Method
+        private string GetLastUserFromReferenceNo(string referenceNo, string workflowType)
         {            
-            return new WTWorkflowTaskDataDAL().GetLastUserFromReferenceNo(referenceNo,POLICY_NAMESPACE);
+            return new WTWorkflowTaskDataDAL().GetLastUserFromReferenceNo(referenceNo,workflowType);
         }        
 
-        private Int32 ProcessWTWorkflowTaskDataPIC(WTWorkflowTaskDataEntities entity)
+        private Int32 ProcessWTWorkflowTaskDataPIC(WTWorkflowTaskDataEntities entity, string workflowType)
         {
-            return new WTWorkflowTaskDataDAL().ProcessWTWorkflowTaskDataPIC(entity, POLICY_NAMESPACE);
+            return new WTWorkflowTaskDataDAL().ProcessWTWorkflowTaskDataPIC(entity, workflowType);
         }
 
-        private void InsertWTWorkflowDataField(WTWorkflowDataFieldEntities entity)
+        private void InsertWTWorkflowDataField(WTWorkflowDataFieldEntities entity, string workflowType)
         {
-            new WTWorkflowTaskDataDAL().InsertWTWorkflowDataField(entity, POLICY_NAMESPACE);
+            new WTWorkflowTaskDataDAL().InsertWTWorkflowDataField(entity, workflowType);
         }
 
-        private IList<WorkflowDataProcessedEntities> WorkflowTaskDataProcessed()
+        private IList<WorkflowDataProcessedEntities> WorkflowTaskDataProcessed(string workflowType)
         {
-            return new WTWorkflowTaskDataDAL().WorkflowTaskDataProcessed();
+            return new WTWorkflowTaskDataDAL().WorkflowTaskDataProcessed(workflowType);
         }
+        #endregion
 
-        public static void ProcessK2Data()
+        public static void ProcessK2Data(string workflowType)
         {
             int procInstId = 0;
-            IList<WorkflowDataProcessedEntities> listData = new List<WorkflowDataProcessedEntities>();
-            listData = GetInstance().WorkflowTaskDataProcessed().OrderBy(x => x.WTWorkflowTaskDataID).ToList();
+            int countData = Convert.ToInt32(ConfigurationManager.AppSettings["CountDataProcessed"]);
 
-            foreach (var item in listData)
+            IList<WorkflowDataProcessedEntities> listData = new List<WorkflowDataProcessedEntities>();
+            listData = GetInstance().WorkflowTaskDataProcessed(workflowType).OrderBy(x => x.WTWorkflowTaskDataID).Take(countData).ToList();
+
+            using (System.Transactions.TransactionScope transactionScope = new System.Transactions.TransactionScope())
             {
-                var data = GetK2TaskDataFromReferenceNo(item.ReferenceNo);
-                procInstId = GetInstance().ProcessWTWorkflowTaskDataPIC(data);
-                GetK2DataField(procInstId, item.ReferenceNo);
+                try
+                {
+                    foreach (var item in listData)
+                    {
+                        var data = GetK2TaskDataFromReferenceNo(item.ReferenceNo, workflowType);
+                        procInstId = GetInstance().ProcessWTWorkflowTaskDataPIC(data, workflowType);
+                        GetK2DataField(procInstId, item.ReferenceNo, workflowType);
+                    }
+                }
+                catch (System.Transactions.TransactionException ex)
+                {
+                    transactionScope.Dispose();
+                    throw ex;
+                }
             }
         }
 
-        public static WTWorkflowTaskDataEntities GetK2TaskDataFromReferenceNo(string referenceNo)
+        public static WTWorkflowTaskDataEntities GetK2TaskDataFromReferenceNo(string referenceNo, string workflowType)
         {
             WTWorkflowTaskDataEntities workflowTaskData = new WTWorkflowTaskDataEntities();
             var connection = new Connection();
@@ -114,7 +135,7 @@ namespace K2ExtractionTools
             _worklistCriteria.AddFilterField(WCLogical.AndBracket, WCField.ProcessFolio, WCCompare.Like, string.Concat(PERCENT, referenceNo, PERCENT));
 
             string userLogID = string.Empty;
-            userLogID = GetInstance().GetLastUserFromReferenceNo(referenceNo);
+            userLogID = GetInstance().GetLastUserFromReferenceNo(referenceNo, workflowType);
             
             try
             {
@@ -159,7 +180,7 @@ namespace K2ExtractionTools
             return workflowTaskData;
         }
 
-        public static void GetK2DataField(int procIntsID, string referenceNo)
+        public static void GetK2DataField(int procIntsID, string referenceNo, string workflowType)
         {
             WTWorkflowDataFieldEntities dataField;
             var connection = new Connection();
@@ -175,7 +196,7 @@ namespace K2ExtractionTools
                     dataField.DataFieldName = dField.Name;
                     dataField.DataFieldValue = dField.Value.ToString();
                     
-                    GetInstance().InsertWTWorkflowDataField(dataField);
+                    GetInstance().InsertWTWorkflowDataField(dataField, workflowType);
 
                     //Console.WriteLine(dField.Name + "\t" + dField.Value);
                 }
