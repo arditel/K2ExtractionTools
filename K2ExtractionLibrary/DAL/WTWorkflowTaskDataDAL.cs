@@ -62,6 +62,8 @@ namespace K2ExtractionLibrary.DAL
                 objDB.AddInParameter(objCmd, "@Originator", DbType.String, param.Originator);
                 objDB.AddInParameter(objCmd, "@Status", DbType.String, param.Status);
                 objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);
+                objDB.AddInParameter(objCmd, "@SubmitDate", DbType.DateTime, param.SubmitDate);
+                objDB.AddInParameter(objCmd, "@WorkflowStage", DbType.String, param.WorkflowStage);
 
                 try
                 {

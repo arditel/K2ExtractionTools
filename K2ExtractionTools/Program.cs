@@ -164,6 +164,8 @@ namespace K2ExtractionTools
                 workflowTaskData.Folio = _worklist.ProcessInstance.Folio;
                 workflowTaskData.Originator = _worklist.ProcessInstance.Originator.Name;
                 workflowTaskData.Status = _worklist.ProcessInstance.Status1.ToString();
+                workflowTaskData.SubmitDate = _worklist.ProcessInstance.StartDate;
+                workflowTaskData.WorkflowStage = _worklist.ProcessInstance.DataFields["Stage"].Value as string;
 
                 connection.Close();
             }

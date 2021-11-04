@@ -29,22 +29,20 @@ CREATE PROCEDURE General.usp_ProcessWTWorkflowTaskDataPIC
 	@Folio varchar(255),
 	@Originator varchar(100),
 	@Status varchar(10),
-	@WorkflowType varchar(20)
+	@WorkflowType varchar(20),
+	@SubmitDate datetime,
+	@WorkflowStage varchar(512)
 AS
 BEGIN
 	
-	DECLARE @StartDate datetime = '1900-01-01',
-		@WorkflowStageDescription varchar(50),
+	DECLARE @WorkflowStageDescription varchar(50),
 		@WTWorkflowTaskDataID bigint,
 		@tmpID bigint,
 		@StatusCode varchar(5)
 
 	IF(@WorkflowType = 'Policy')
 	BEGIN
-		--UPDATE WTWORKFLOWTASKDATA
-		SELECT TOP 1 @StartDate = B.CreatedDate FROM PolicyInsurance.WorkflowTask A
-		INNER JOIN PolicyInsurance.WorkflowTaskAssignment B ON A.WorkflowTaskID = B.WorkflowTaskID		
-		WHERE ReferenceNo=@ReferenceNo ORDER BY WorkflowTaskAssignmentID
+		--UPDATE WTWORKFLOWTASKDATA		
 
 		select @WorkflowStageDescription = StageDescription
 		FROM PolicyInsurance.WorkflowStage
@@ -65,7 +63,7 @@ BEGIN
 			Folio = @Folio,
 			Originator = @Originator,
 			Status = @Status,
-			StartDate = @StartDate,
+			StartDate = @SubmitDate,
 			IsProcess = 1,
 			ModifiedBy = 'System',
 			ModifiedDate = GETDATE()
@@ -141,16 +139,7 @@ BEGIN
 	END
 	ELSE
 	BEGIN
-		--UPDATE WTWORKFLOWTASKDATA
-		SELECT TOP 1 @StartDate = B.CreatedDate FROM Claim.WorkflowTask A
-		INNER JOIN Claim.WorkflowTaskAssignment B ON A.WorkflowTaskID = B.WorkflowTaskID		
-		WHERE ReferenceNo=@ReferenceNo ORDER BY WorkflowTaskAssignmentID
-
-		--select @WorkflowStageDescription = StageDescription
-		--FROM Claim.WorkflowStage
-		--WHERE StageCode = @WorkflowStageCode
-		--and RowStatus = 0
-
+		--UPDATE WTWORKFLOWTASKDATA		
 		select top 1 @WTWorkflowTaskDataID = WTWorkflowTaskDataID
 		FROM Claim.WTWorkflowTaskData
 		WHERE ReferenceNo = @ReferenceNo
@@ -161,11 +150,11 @@ BEGIN
 		SET SerialNo = @SerialNo,
 			CanvasName = @CanvasName,
 			WorkflowStageCode = @WorkflowStageCode,
-			WorkflowStageDescription = @WorkflowStageCode,
+			WorkflowStageDescription = @WorkflowStage,
 			Folio = @Folio,
 			Originator = @Originator,
 			Status = @Status,
-			StartDate = @StartDate,
+			StartDate = @SubmitDate,
 			IsProcess = 1,
 			ModifiedBy = 'System',
 			ModifiedDate = GETDATE()
@@ -214,7 +203,7 @@ BEGIN
 				@SerialNo,
 				@CanvasName,
 				@WorkflowStageCode,
-				@WorkflowStageDescription,
+				@WorkflowStage,
 				Actor,
 				0,
 				'System',

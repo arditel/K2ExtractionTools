@@ -13,6 +13,8 @@ namespace K2ExtractionLibrary.Model
         public string WorkflowStageCode { get; set; }
         public string Folio { get; set; }
         public string Originator { get; set; }
-        public string Status { get; set; }        
+        public string Status { get; set; }
+        public DateTime SubmitDate { get; set; }
+        public string WorkflowStage { get; set; } 
     }
 }
