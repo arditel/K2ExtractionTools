@@ -18,9 +18,7 @@ namespace K2ExtractionTools
         private static Program _instance;
         
         private const string PERCENT = "%";
-        private const string PREFIX_K2USER = "K2:";
-        private const string POLICY_WORKFLOW = "Policy";
-        private const string CLAIM_WORKFLOW = "Claim";
+        private const string PREFIX_K2USER = "K2:";        
 
         public Program()
         {
@@ -97,6 +95,11 @@ namespace K2ExtractionTools
         {
             return new WTWorkflowTaskDataDAL().WorkflowTaskDataProcessed(workflowType);
         }
+
+        private void UpdateK2Data(int procInstID)
+        {
+            new K2WorklistDAL().UpdateWorklistSlotStatusByProcInstID(procInstID);
+        }
         #endregion
 
         public static void ProcessK2Data(string workflowType)
@@ -116,6 +119,7 @@ namespace K2ExtractionTools
                         var data = GetK2TaskDataFromReferenceNo(item.ReferenceNo, workflowType);
                         procInstId = GetInstance().ProcessWTWorkflowTaskDataPIC(data, workflowType);
                         GetK2DataField(procInstId, item.ReferenceNo, workflowType);
+                        GetInstance().UpdateK2Data(procInstId);
                     }
                 }
                 catch (System.Transactions.TransactionException ex)
@@ -144,18 +148,7 @@ namespace K2ExtractionTools
                 connection.ImpersonateUser(string.Concat(PREFIX_K2USER, userLogID));
                 
                 var worklistData = connection.OpenWorklist(_worklistCriteria);
-                var _worklist = (from t in worklistData.OfType<WorklistItem>() select t).ToList<WorklistItem>().FirstOrDefault();
-
-                //foreach (WorklistItem _item in _worklist)
-                //{
-                //    Console.WriteLine("SerialNo : " + _item.SerialNumber);
-                //    Console.WriteLine("ReferenceNo : " + _item.ProcessInstance.DataFields["ReferenceNo"].Value as string);
-                //    Console.WriteLine("CanvasName :" + _item.ProcessInstance.Name);
-                //    Console.WriteLine("WorkflowStageCode :" + _item.ProcessInstance.DataFields["StageCode"].Value as string);
-                //    Console.WriteLine("Folio :" + _item.ProcessInstance.Folio);
-                //    Console.WriteLine("Originator :" + _item.ProcessInstance.Originator.Name);
-                //    Console.WriteLine("Status :" + _item.ProcessInstance.Status1);                    
-                //}
+                var _worklist = (from t in worklistData.OfType<WorklistItem>() select t).ToList<WorklistItem>().FirstOrDefault();                
 
                 workflowTaskData.SerialNo = _worklist.SerialNumber;
                 workflowTaskData.ReferenceNo = _worklist.ProcessInstance.DataFields["ReferenceNo"].Value as string;
@@ -171,7 +164,7 @@ namespace K2ExtractionTools
             }
             catch(Exception ex)
             {
-                Console.WriteLine(ex);
+                throw ex;
             }
             finally
             {                
@@ -198,19 +191,18 @@ namespace K2ExtractionTools
                     dataField.DataFieldName = dField.Name;
                     dataField.DataFieldValue = dField.Value.ToString();
                     
-                    GetInstance().InsertWTWorkflowDataField(dataField, workflowType);
-
-                    //Console.WriteLine(dField.Name + "\t" + dField.Value);
+                    GetInstance().InsertWTWorkflowDataField(dataField, workflowType);                    
                 }
                 connection.Close();
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex);
+                throw ex;
             }
             finally
             {
                 connection.Close();
+                connection.Dispose();
             }            
         }
     }

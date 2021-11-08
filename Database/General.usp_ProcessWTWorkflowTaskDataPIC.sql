@@ -38,7 +38,8 @@ BEGIN
 	DECLARE @WorkflowStageDescription varchar(50),
 		@WTWorkflowTaskDataID bigint,
 		@tmpID bigint,
-		@StatusCode varchar(5)
+		@StatusCode varchar(5),
+		@DomainPrefix varchar(10)
 
 	IF(@WorkflowType = 'Policy')
 	BEGIN
@@ -104,6 +105,30 @@ BEGIN
 				where A.WorkFlowTaskAssignmentID < B.WorkFlowTaskAssignmentID and A.WorkFlowAssignmentStatusCode = 'ASS'
 			)		
 
+			--Get assigned actor
+			SELECT DISTINCT Actor
+			into #tmpASS_Policy
+			FROM #tmpWF_Policy
+			WHERE WorkFlowAssignmentStatusCode = 'ASS'
+			
+			--Get Domain Prefix
+			select top 1 @DomainPrefix = LEFT(Actor,CHARINDEX('\',Actor,0)) FROM #tmpASS_Policy
+
+			--Add user OOF
+			insert #tmpASS_Policy
+			select CONCAT(@DomainPrefix,EmpAct.LogID)
+			from General.OutOfOffice OOF 
+			inner join General.vActiveEmployeeInformation Emp on OOF.EmployeeID = emp.EmployeeID
+			inner join General.vActiveEmployeeInformation EmpAct on EmpAct.EmployeeID = OOF.ActingEmployeeID
+			where OOF.employeeid in (
+				select EmployeeID from General.vactiveemployeeinformation 
+				where logid in (select General.udf_removedomainfromuser(Actor) 
+								from #tmpASS))
+			and OOF.StartDate < GETDATE() 
+			and OOF.EndDate > GETDATE()
+			and OOF.ActiveStatusID = 1
+			and OOF.RowStatus = 0
+
 			--Insert ke table Policyinsurance.WTWorkflowDataPIC
 			INSERT PolicyInsurance.WTWorkflowDataPIC
 			(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,PICUser,IsOpen,CreatedBy,CreateDate)
@@ -117,8 +142,7 @@ BEGIN
 				0,
 				'System',
 				GETDATE()
-			FROM #tmpWF_Policy
-			WHERE WorkFlowAssignmentStatusCode = 'ASS'
+			FROM #tmpASS_Policy
 			
 			--ambil statuscode workflow terakhir
 			select top 1 @StatusCode = WorkFlowAssignmentStatusCode
@@ -133,8 +157,11 @@ BEGIN
 			WHERE PIC.ReferenceNo = @ReferenceNo 
 				AND TMP.WorkFlowAssignmentStatusCode = 'IOP'
 				AND @StatusCode <> 'REL' -- tidak update IsOpen jika statuscode terakhir Release
-
-			DROP TABLE #tmpWF_Policy
+			
+			IF OBJECT_ID('tempdb..#tmpWF_Policy') is not null
+				DROP TABLE #tmpWF_Policy
+			IF OBJECT_ID('tempdb..#tmpASS_Policy') is not null
+				DROP TABLE #tmpASS_Policy
 		END
 	END
 	ELSE
@@ -195,21 +222,44 @@ BEGIN
 				where A.WorkFlowTaskAssignmentID < B.WorkFlowTaskAssignmentID and A.WorkFlowAssignmentStatusCode = 'ASS'
 			)		
 
-			--Insert ke table Claim.WTWorkflowDataPIC
-			INSERT Claim.WTWorkflowDataPIC
+			--Get assigned actor
+			SELECT DISTINCT Actor
+			into #tmpASS_Claim
+			FROM #tmpWF_Claim
+			WHERE WorkFlowAssignmentStatusCode = 'ASS'
+			
+			--Get Domain Prefix
+			select top 1 @DomainPrefix = LEFT(Actor,CHARINDEX('\',Actor,0)) FROM #tmpASS_Claim
+
+			--Add user OOF
+			insert #tmpASS_Claim
+			select CONCAT(@DomainPrefix,EmpAct.LogID)
+			from General.OutOfOffice OOF 
+			inner join General.vActiveEmployeeInformation Emp on OOF.EmployeeID = emp.EmployeeID
+			inner join General.vActiveEmployeeInformation EmpAct on EmpAct.EmployeeID = OOF.ActingEmployeeID
+			where OOF.employeeid in (
+				select EmployeeID from General.vactiveemployeeinformation 
+				where logid in (select General.udf_removedomainfromuser(Actor) 
+								from #tmpASS))
+			and OOF.StartDate < GETDATE() 
+			and OOF.EndDate > GETDATE()
+			and OOF.ActiveStatusID = 1
+			and OOF.RowStatus = 0
+
+			--Insert ke table Policyinsurance.WTWorkflowDataPIC
+			INSERT PolicyInsurance.WTWorkflowDataPIC
 			(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,PICUser,IsOpen,CreatedBy,CreateDate)
 			SELECT DISTINCT 
 				@ReferenceNo,
 				@SerialNo,
 				@CanvasName,
 				@WorkflowStageCode,
-				@WorkflowStage,
+				@WorkflowStageDescription,
 				Actor,
 				0,
 				'System',
 				GETDATE()
-			FROM #tmpWF_Claim
-			WHERE WorkFlowAssignmentStatusCode = 'ASS'
+			FROM #tmpASS_Claim
 			
 			--ambil statuscode workflow terakhir
 			select top 1 @StatusCode = WorkFlowAssignmentStatusCode
@@ -219,13 +269,16 @@ BEGIN
 			--Update PIC User Open
 			UPDATE Claim.WTWorkflowDataPIC
 			SET IsOpen = 1, ItemOpenedDate = TMP.WTACreatedDate
-			FROM PolicyInsurance.WTWorkflowDataPIC PIC
+			FROM Claim.WTWorkflowDataPIC PIC
 				INNER JOIN #tmpWF_Claim TMP on PIC.PICUser = TMP.Actor
 			WHERE PIC.ReferenceNo = @ReferenceNo 
 				AND TMP.WorkFlowAssignmentStatusCode = 'IOP'
 				AND @StatusCode <> 'REL' -- tidak update IsOpen jika statuscode terakhir Release
-
-			DROP TABLE #tmpWF_Claim
+			
+			IF OBJECT_ID('tempdb..#tmpWF_Claim') is not null
+				DROP TABLE #tmpWF_Claim
+			IF OBJECT_ID('tempdb..#tmpASS_Claim') is not null
+				DROP TABLE #tmpASS_Claim
 		END
 	END
 
