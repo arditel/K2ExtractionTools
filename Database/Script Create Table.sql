@@ -151,3 +151,30 @@ ALTER TABLE Claim.WTWorkflowTaskData ADD CONSTRAINT [DF_WTWorkflowTaskData_RowSt
 GO
 ALTER TABLE Claim.WTWorkflowTaskData ADD CONSTRAINT [DF_WTWorkflowTaskData_IsProcess] DEFAULT ((0)) FOR [IsProcess]
 GO
+
+CREATE TABLE General.WorklistSlotLog
+(
+	WorklistSlotLogID bigint identity(1,1) not null,
+	ReferenceNo VARCHAR(50) null,
+	WorkflowStage VARCHAR(50) null,
+	WorkflowType VARCHAR(20) null,
+	[HeaderID] [int] not null,
+	[ProcInstID] [int] not null,
+	[ActInstID] [int] null,
+	[SlotFieldID] [int] null,
+	[EventInstID] [int] null,
+	[ActionerID] [int] null,
+	[Status] [tinyint] not null,
+	[Verify] [bit] null,
+	[AllocDate] [datetime] null,
+	CreatedBy VARCHAR(50) not null,
+	CreatedDate DATETIME not null,
+	ModifiedBy VARCHAR(50) null,
+	ModifiedDate DATETIME null,
+	RowStatus smallint not null,
+	CONSTRAINT PK_WorklistSlotLog PRIMARY KEY CLUSTERED (WorklistSlotLogID ASC)
+)
+GO
+
+ALTER TABLE General.WorklistSlotLog ADD CONSTRAINT [DF_WorklistSlotLog_RowStatus] DEFAULT (0) FOR [RowStatus]
+GO

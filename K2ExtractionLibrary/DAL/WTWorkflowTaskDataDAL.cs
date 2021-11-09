@@ -85,8 +85,7 @@ namespace K2ExtractionLibrary.DAL
             
 
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_InsertWTWorkflowDataField"))
-            {
-                objCmd.CommandTimeout = 30;
+            {                
                 objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, param.ReferenceNo);
                 objDB.AddInParameter(objCmd, "@DataFieldName", DbType.String, param.DataFieldName);
                 objDB.AddInParameter(objCmd, "@DataFIeldValue", DbType.String, param.DataFieldValue);
