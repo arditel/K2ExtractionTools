@@ -20,7 +20,7 @@ GO
 -- Create date: <Create Date,,>
 -- Description:	<Description,,>
 -- =============================================
-CREATE PROCEDURE General.usp_ProcessWTWorkflowTaskDataPIC
+ALTER PROCEDURE General.usp_ProcessWTWorkflowTaskDataPIC
 	-- Add the parameters for the stored procedure here
 	@ReferenceNo Varchar(50),
 	@SerialNo varchar(10),
@@ -123,7 +123,7 @@ BEGIN
 			where OOF.employeeid in (
 				select EmployeeID from General.vactiveemployeeinformation 
 				where logid in (select General.udf_removedomainfromuser(Actor) 
-								from #tmpASS))
+								from #tmpASS_Policy))
 			and OOF.StartDate < GETDATE() 
 			and OOF.EndDate > GETDATE()
 			and OOF.ActiveStatusID = 1
@@ -166,29 +166,38 @@ BEGIN
 	END
 	ELSE
 	BEGIN
-		--UPDATE WTWORKFLOWTASKDATA		
-		select top 1 @WTWorkflowTaskDataID = WTWorkflowTaskDataID
-		FROM Claim.WTWorkflowTaskData
-		WHERE ReferenceNo = @ReferenceNo
-		and RowStatus = 0
-		ORDER BY WTWorkflowTaskDataID desc
+		IF EXISTS (select 1 FROM Claim.WTWorkflowTaskData where ReferenceNo = @ReferenceNo and WorkflowStageCode is null)
+		BEGIN
+			--UPDATE WTWORKFLOWTASKDATA		
+			select top 1 @WTWorkflowTaskDataID = WTWorkflowTaskDataID
+			FROM Claim.WTWorkflowTaskData
+			WHERE ReferenceNo = @ReferenceNo
+			and RowStatus = 0
+			ORDER BY WTWorkflowTaskDataID desc
 
-		UPDATE Claim.WTWorkflowTaskData
-		SET SerialNo = @SerialNo,
-			CanvasName = @CanvasName,
-			WorkflowStageCode = @WorkflowStageCode,
-			WorkflowStageDescription = @WorkflowStage,
-			Folio = @Folio,
-			Originator = @Originator,
-			Status = @Status,
-			StartDate = @SubmitDate,
-			IsProcess = 1,
-			ModifiedBy = 'System',
-			ModifiedDate = GETDATE()
-		WHERE WTWorkflowTaskDataID = @WTWorkflowTaskDataID
+			UPDATE Claim.WTWorkflowTaskData
+			SET SerialNo = @SerialNo,
+				CanvasName = @CanvasName,
+				WorkflowStageCode = @WorkflowStageCode,
+				WorkflowStageDescription = @WorkflowStage,
+				Folio = @Folio,
+				Originator = @Originator,
+				Status = @Status,
+				StartDate = @SubmitDate,
+				IsProcess = 1,
+				ModifiedBy = 'System',
+				ModifiedDate = GETDATE()
+			WHERE WTWorkflowTaskDataID = @WTWorkflowTaskDataID
+		END
+		ELSE
+		BEGIN
+			INSERT Claim.WTWorkflowTaskData (ReferenceNo, SerialNo, CanvasName, WorkflowStageCode, WorkflowStageDescription, Folio, Originator, Status, StartDate, IsProcess, CreatedBy,CreateDate,RowStatus)
+			VALUES
+			( @ReferenceNo, @SerialNo, @CanvasName, @WorkflowStageCode, @WorkflowStage, @Folio, @Originator, @Status, @SubmitDate, 1, 'System',GETDATE(),0)
+		END
 
 		--INSERT WTWORKFLOWDATAPIC
-		IF NOT EXISTS (select 1 from Claim.WTWorkflowDataPIC where ReferenceNo = @ReferenceNo)
+		IF NOT EXISTS (select 1 from Claim.WTWorkflowDataPIC where ReferenceNo = @ReferenceNo and WorkflowStageDescription = @WorkflowStage)
 		BEGIN
 			--ambil semua worklist yg status assigned
 			SELECT WorkflowTaskAssignmentID,WorkFlowAssignmentStatusCode, Actor, B.CreatedDate As WTACreatedDate
@@ -197,6 +206,7 @@ BEGIN
 			INNER JOIN Claim.WorkflowTaskAssignment B ON A.WorkflowTaskID = B.WorkflowTaskID
 			INNER JOIN General.WorkFlowAssignmentStatus C ON B.WorkflowAssignmentStatusID = C.WorkFlowAssignmentStatusID
 			WHERE ReferenceNo=@ReferenceNo 
+			AND B.WorkflowStage = @WorkflowStage
 			ORDER BY WorkflowTaskAssignmentID
 
 			--ambil workflow terakhir sebelum assigned
@@ -231,30 +241,34 @@ BEGIN
 			--Get Domain Prefix
 			select top 1 @DomainPrefix = LEFT(Actor,CHARINDEX('\',Actor,0)) FROM #tmpASS_Claim
 
+			DECLARE @EmployeeID dbo.IDS
+
+			insert @EmployeeID
+			select EmployeeID 			
+			from General.vactiveemployeeinformation 
+			where logid in (select General.udf_removedomainfromuser(Actor) 
+								from #tmpASS_Claim)
+
 			--Add user OOF
 			insert #tmpASS_Claim
 			select CONCAT(@DomainPrefix,EmpAct.LogID)
-			from General.OutOfOffice OOF 
-			inner join General.vActiveEmployeeInformation Emp on OOF.EmployeeID = emp.EmployeeID
+			from General.OutOfOffice OOF 			
 			inner join General.vActiveEmployeeInformation EmpAct on EmpAct.EmployeeID = OOF.ActingEmployeeID
-			where OOF.employeeid in (
-				select EmployeeID from General.vactiveemployeeinformation 
-				where logid in (select General.udf_removedomainfromuser(Actor) 
-								from #tmpASS))
+			inner join @EmployeeID emp on OOF.EmployeeID = emp.ID
 			and OOF.StartDate < GETDATE() 
 			and OOF.EndDate > GETDATE()
 			and OOF.ActiveStatusID = 1
 			and OOF.RowStatus = 0
 
 			--Insert ke table Policyinsurance.WTWorkflowDataPIC
-			INSERT PolicyInsurance.WTWorkflowDataPIC
+			INSERT Claim.WTWorkflowDataPIC
 			(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,PICUser,IsOpen,CreatedBy,CreateDate)
 			SELECT DISTINCT 
 				@ReferenceNo,
 				@SerialNo,
 				@CanvasName,
 				@WorkflowStageCode,
-				@WorkflowStageDescription,
+				@WorkflowStage,
 				Actor,
 				0,
 				'System',
@@ -272,6 +286,7 @@ BEGIN
 			FROM Claim.WTWorkflowDataPIC PIC
 				INNER JOIN #tmpWF_Claim TMP on PIC.PICUser = TMP.Actor
 			WHERE PIC.ReferenceNo = @ReferenceNo 
+				AND PIC.WorkflowStageDescription = @WorkflowStage
 				AND TMP.WorkFlowAssignmentStatusCode = 'IOP'
 				AND @StatusCode <> 'REL' -- tidak update IsOpen jika statuscode terakhir Release
 			

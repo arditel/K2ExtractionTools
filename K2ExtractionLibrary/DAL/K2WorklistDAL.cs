@@ -17,7 +17,7 @@ namespace K2ExtractionLibrary.DAL
         
         public K2WorklistDAL()
         {
-            _connectionString = ConfigurationManager.ConnectionStrings["K2ServerConnString"].ToString();
+            _connectionString = ConfigurationManager.ConnectionStrings["DefaultConnString"].ToString();
         }
 
         private void UpdateWorklistSlotStatus(WorklistHeader worklistHeader)
@@ -28,10 +28,8 @@ namespace K2ExtractionLibrary.DAL
 
             using (DbCommand objCmd = objDB.GetSqlStringCommand(query))
             {
-                objCmd.Parameters.Add("@HeaderID");
-                objCmd.Parameters["@HeaderID"].Value = worklistHeader.HeaderID;
-                objCmd.Parameters.Add("@ProcInstID");
-                objCmd.Parameters["@ProcInstID"].Value = worklistHeader.ProcInstID;
+                objDB.AddInParameter(objCmd, "HeaderID", DbType.Int32, worklistHeader.HeaderID);
+                objDB.AddInParameter(objCmd, "ProcInstID", DbType.Int32, worklistHeader.ProcInstID);
 
                 try
                 {
@@ -52,11 +50,10 @@ namespace K2ExtractionLibrary.DAL
             objDB = new SqlDatabase(_connectionString);
 
             string query = "SELECT TOP 1 ID, ProcInstID FROM [K2Server].[Server].[WorklistHeader] where ProcInstID = @ProcInstID";
-
+            
             using (DbCommand objCmd = objDB.GetSqlStringCommand(query))
             {
-                objCmd.Parameters.Add("@ProcInstID");
-                objCmd.Parameters["@ProcInstID"].Value = procInstID;
+                objDB.AddInParameter(objCmd,"ProcInstID",DbType.Int32,procInstID);
 
                 try
                 {
@@ -88,9 +85,9 @@ namespace K2ExtractionLibrary.DAL
                 var entity = new WorklistHeader();
 
                 if (!Convert.IsDBNull(reader["ID"]))
-                    entity.HeaderID = Convert.ToInt32(reader["WTWorkflowTaskDataID"].ToString());
+                    entity.HeaderID = Convert.ToInt32(reader["ID"].ToString());
                 if (!Convert.IsDBNull(reader["ProcInstID"]))
-                    entity.ProcInstID = Convert.ToInt32(reader["ReferenceNo"].ToString());
+                    entity.ProcInstID = Convert.ToInt32(reader["ProcInstID"].ToString());
 
                 entities.Add(entity);
             }

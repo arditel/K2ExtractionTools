@@ -222,7 +222,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DAL\K2WorklistDAL.cs" />
     <Compile Include="DAL\WTWorkflowTaskDataDAL.cs" />
+    <Compile Include="Model\WorkflowDataActorEntities.cs" />
     <Compile Include="Model\WorkflowDataProcessedEntities.cs" />
     <Compile Include="Model\WTWorkflowDataFieldEntities.cs" />
     <Compile Include="Model\WTWorkflowTaskDataEntities.cs" />

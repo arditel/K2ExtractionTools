@@ -22,21 +22,22 @@ namespace K2ExtractionLibrary.DAL
             _connectionString = ConfigurationManager.ConnectionStrings["DefaultConnString"].ToString();
         }
 
-        public string GetLastUserFromReferenceNo(string referenceNo, string workflowType)
+        public IList<WorkflowDataActorEntities> GetLastUserFromReferenceNo(string referenceNo, string workflowType)
         {
-            string result = string.Empty;
+            IDataReader reader = null;
+            IList<WorkflowDataActorEntities> rows = null;
+
             objDB = new SqlDatabase(_connectionString);
 
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_GetLastUserFromReferenceNo"))
             {
                 objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, referenceNo);
-                objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);
-                objDB.AddOutParameter(objCmd, "@UserLogID", DbType.String, 20);
+                objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);                
 
                 try
                 {
-                    objDB.ExecuteNonQuery(objCmd);
-                    result = objDB.GetParameterValue(objCmd, "@UserLogID").ToString();
+                    reader = objDB.ExecuteReader(objCmd);
+                    rows = MapGetLastUser(reader);
                 }
                 catch (Exception ex)
                 {
@@ -44,12 +45,13 @@ namespace K2ExtractionLibrary.DAL
                 }
             }
 
-            return result;
+            return rows;
         }        
 
         public Int32 ProcessWTWorkflowTaskDataPIC(WTWorkflowTaskDataEntities param, string workflowType)
         {
             Int32 procInstId = 0;
+            
             objDB = new SqlDatabase(_connectionString);
 
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_ProcessWTWorkflowTaskDataPIC"))
@@ -66,8 +68,7 @@ namespace K2ExtractionLibrary.DAL
                 objDB.AddInParameter(objCmd, "@WorkflowStage", DbType.String, param.WorkflowStage);
 
                 try
-                {
-                    //objDB.ExecuteNonQuery(objCmd);
+                {                    
                     procInstId = Convert.ToInt32(objDB.ExecuteScalar(objCmd));
                 }
                 catch(Exception ex)
@@ -81,9 +82,11 @@ namespace K2ExtractionLibrary.DAL
         public void InsertWTWorkflowDataField(WTWorkflowDataFieldEntities param, string workflowType)
         {
             objDB = new SqlDatabase(_connectionString);
+            
 
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_InsertWTWorkflowDataField"))
             {
+                objCmd.CommandTimeout = 30;
                 objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, param.ReferenceNo);
                 objDB.AddInParameter(objCmd, "@DataFieldName", DbType.String, param.DataFieldName);
                 objDB.AddInParameter(objCmd, "@DataFIeldValue", DbType.String, param.DataFieldValue);
@@ -143,6 +146,24 @@ namespace K2ExtractionLibrary.DAL
                 entities.Add(entity);
             }
 
+            return entities;
+        }
+
+        private IList<WorkflowDataActorEntities> MapGetLastUser(IDataReader reader)
+        {
+            IList<WorkflowDataActorEntities> entities = new List<WorkflowDataActorEntities>();
+
+            while (reader.Read())
+            {
+                var entity = new WorkflowDataActorEntities();
+
+                if (!Convert.IsDBNull(reader["WorkflowStage"]))
+                    entity.WorkflowStage = reader["WorkflowStage"].ToString();
+                if (!Convert.IsDBNull(reader["Actor"]))
+                    entity.Actor = reader["Actor"].ToString();
+
+                entities.Add(entity);
+            }
             return entities;
         }
         #endregion

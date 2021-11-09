@@ -7,6 +7,7 @@ using SourceCode.Workflow.Client;
 using SourceCode.Hosting.Client.BaseAPI;
 using K2ExtractionLibrary.DAL;
 using K2ExtractionLibrary.Model;
+using System.Transactions;
 
 namespace K2ExtractionTools
 {
@@ -18,10 +19,12 @@ namespace K2ExtractionTools
         private static Program _instance;
         
         private const string PERCENT = "%";
-        private const string PREFIX_K2USER = "K2:";        
+        private const string PREFIX_K2USER = "K2:";
+        private const string CLAIMWORKFLOW = "CLAIM";
+        private const string POLICYWORKFLOW = "POLICY";
 
         public Program()
-        {
+        {            
         }
 
         public static Program GetInstance()
@@ -33,12 +36,12 @@ namespace K2ExtractionTools
 
         static void Main(string[] args)
         {
-            if (args.Length > 0)
-            {
-                string workflowType = args[0].ToLower();
+            var workflowTypeColl = ConfigurationManager.AppSettings["WorkflowType"].Split(';').ToList();
+            LoadConfiguration();
 
-                LoadConfiguration();
-                ProcessK2Data(workflowType);
+            foreach (var _workflowType in workflowTypeColl)
+            {
+                ProcessK2Data(_workflowType);
             }
         }
 
@@ -76,7 +79,7 @@ namespace K2ExtractionTools
         }
 
         #region Non Static Method
-        private string GetLastUserFromReferenceNo(string referenceNo, string workflowType)
+        private IList<WorkflowDataActorEntities> GetLastUserFromReferenceNo(string referenceNo, string workflowType)
         {            
             return new WTWorkflowTaskDataDAL().GetLastUserFromReferenceNo(referenceNo,workflowType);
         }        
@@ -96,7 +99,7 @@ namespace K2ExtractionTools
             return new WTWorkflowTaskDataDAL().WorkflowTaskDataProcessed(workflowType);
         }
 
-        private void UpdateK2Data(int procInstID)
+        private void UpdateK2DataStatus(int procInstID)
         {
             new K2WorklistDAL().UpdateWorklistSlotStatusByProcInstID(procInstID);
         }
@@ -110,69 +113,86 @@ namespace K2ExtractionTools
             IList<WorkflowDataProcessedEntities> listData = new List<WorkflowDataProcessedEntities>();
             listData = GetInstance().WorkflowTaskDataProcessed(workflowType).OrderBy(x => x.WTWorkflowTaskDataID).Take(countData).ToList();
 
-            using (System.Transactions.TransactionScope transactionScope = new System.Transactions.TransactionScope())
+            using (TransactionScope transactionScope = new TransactionScope(TransactionScopeOption.Suppress, new TransactionOptions() { IsolationLevel = IsolationLevel.Serializable }))
             {
                 try
                 {
                     foreach (var item in listData)
                     {
-                        var data = GetK2TaskDataFromReferenceNo(item.ReferenceNo, workflowType);
-                        procInstId = GetInstance().ProcessWTWorkflowTaskDataPIC(data, workflowType);
-                        GetK2DataField(procInstId, item.ReferenceNo, workflowType);
-                        GetInstance().UpdateK2Data(procInstId);
-                    }
+                        var taskDataList = GetK2TaskDataFromReferenceNo(item.ReferenceNo, workflowType);
+                        foreach (var data in taskDataList)
+                        {
+                            procInstId = GetInstance().ProcessWTWorkflowTaskDataPIC(data, workflowType);
+                            GetK2DataField(procInstId, item.ReferenceNo, workflowType);
+                            GetInstance().UpdateK2DataStatus(procInstId);
+                        }
+                    }                    
                 }
-                catch (System.Transactions.TransactionException ex)
+                catch (TransactionException ex)
                 {
                     transactionScope.Dispose();
-                    throw ex;
+                    Console.WriteLine(ex.ToString());
+                    Console.ReadLine();
                 }
             }
         }
 
-        public static WTWorkflowTaskDataEntities GetK2TaskDataFromReferenceNo(string referenceNo, string workflowType)
+        public static IList<WTWorkflowTaskDataEntities> GetK2TaskDataFromReferenceNo(string referenceNo, string workflowType)
         {
-            WTWorkflowTaskDataEntities workflowTaskData = new WTWorkflowTaskDataEntities();
+            IList<WTWorkflowTaskDataEntities> listTaskData = new List<WTWorkflowTaskDataEntities>();
+            IList<WorkflowDataActorEntities> listDataActor = new List<WorkflowDataActorEntities>();
             var connection = new Connection();
 
             WorklistCriteria _worklistCriteria = new WorklistCriteria();
             _worklistCriteria.AddFilterField(WCLogical.AndBracket, WCField.ProcessFolio, WCCompare.Like, string.Concat(PERCENT, referenceNo, PERCENT));
 
-            string userLogID = string.Empty;
-            userLogID = GetInstance().GetLastUserFromReferenceNo(referenceNo, workflowType);
-            
-            try
+            listDataActor = GetInstance().GetLastUserFromReferenceNo(referenceNo, workflowType);
+
+            foreach (WorkflowDataActorEntities item in listDataActor)
             {
-                connection.Open(ConfigurationManager.AppSettings["K2ServerAddress"], ConnectionString);
+                WTWorkflowTaskDataEntities workflowTaskData = new WTWorkflowTaskDataEntities();                
 
-                connection.ImpersonateUser(string.Concat(PREFIX_K2USER, userLogID));
-                
-                var worklistData = connection.OpenWorklist(_worklistCriteria);
-                var _worklist = (from t in worklistData.OfType<WorklistItem>() select t).ToList<WorklistItem>().FirstOrDefault();                
+                try
+                {
+                    connection.Open(ConfigurationManager.AppSettings["K2ServerAddress"], ConnectionString);
 
-                workflowTaskData.SerialNo = _worklist.SerialNumber;
-                workflowTaskData.ReferenceNo = _worklist.ProcessInstance.DataFields["ReferenceNo"].Value as string;
-                workflowTaskData.CanvasName = _worklist.ProcessInstance.Name;
-                workflowTaskData.WorkflowStageCode = _worklist.ProcessInstance.DataFields["StageCode"].Value as string;
-                workflowTaskData.Folio = _worklist.ProcessInstance.Folio;
-                workflowTaskData.Originator = _worklist.ProcessInstance.Originator.Name;
-                workflowTaskData.Status = _worklist.ProcessInstance.Status1.ToString();
-                workflowTaskData.SubmitDate = _worklist.ProcessInstance.StartDate;
-                workflowTaskData.WorkflowStage = _worklist.ProcessInstance.DataFields["Stage"].Value as string;
+                    connection.ImpersonateUser(string.Concat(PREFIX_K2USER, item.Actor));
 
-                connection.Close();
+                    var worklistData = connection.OpenWorklist(_worklistCriteria);
+                    var _worklist = (from t in worklistData.OfType<WorklistItem>() select t).ToList<WorklistItem>();
+
+                    foreach (WorklistItem _wlItem in _worklist)
+                    {
+                        workflowTaskData.SerialNo = _wlItem.SerialNumber;
+                        workflowTaskData.ReferenceNo = _wlItem.ProcessInstance.DataFields["ReferenceNo"].Value as string;
+                        workflowTaskData.CanvasName = _wlItem.ProcessInstance.Name;
+                        workflowTaskData.WorkflowStageCode = _wlItem.ProcessInstance.DataFields["StageCode"].Value as string;
+                        workflowTaskData.Folio = _wlItem.ProcessInstance.Folio;
+                        workflowTaskData.Originator = _wlItem.ProcessInstance.Originator.Name;
+                        workflowTaskData.Status = _wlItem.ProcessInstance.Status1.ToString();
+                        workflowTaskData.SubmitDate = _wlItem.ProcessInstance.StartDate;
+                        workflowTaskData.WorkflowStage = _wlItem.ProcessInstance.DataFields["Stage"].Value as string;
+
+                        if (workflowType.ToUpper() == POLICYWORKFLOW || (workflowType.ToUpper() == CLAIMWORKFLOW && workflowTaskData.WorkflowStage == item.WorkflowStage))
+                        {
+                            listTaskData.Add(workflowTaskData);
+                        }
+                    }
+
+                    connection.Close();
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+                finally
+                {
+                    connection.Close();
+                    connection.Dispose();
+                }                
             }
-            catch(Exception ex)
-            {
-                throw ex;
-            }
-            finally
-            {                
-                connection.Close();
-                connection.Dispose();
-            }
 
-            return workflowTaskData;
+            return listTaskData;
         }
 
         public static void GetK2DataField(int procIntsID, string referenceNo, string workflowType)
