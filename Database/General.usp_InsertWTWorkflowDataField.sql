@@ -23,29 +23,25 @@ GO
 CREATE PROCEDURE General.usp_InsertWTWorkflowDataField
 	-- Add the parameters for the stored procedure here
 	@ReferenceNo Varchar(50),
+	@SerialNo varchar(10),
+	@CanvasName varchar(100),
+	@WorkflowStageCode varchar(8),
+	@WorkflowStageDescription varchar(50),
 	@DataFieldName varchar(255),
 	@DataFieldValue varchar(max),
 	@WorkflowType varchar(20)
 AS
 BEGIN
-	
-	DECLARE @SerialNo varchar(10),
-			@CanvasName varchar(100),
-			@WorkflowStageCode varchar(8),
-			@WorkflowStageDescription varchar(50)
 
 	IF(@WorkflowType = 'Policy')
-	BEGIN		
-		--RETRIEVE WTWORKFLOWTASKDATA
-		select 
-			@SerialNo = SerialNo,
-			@CanvasName = CanvasName,
-			@WorkflowStageCode = WorkflowStageCode,
-			@WorkflowStageDescription = WorkflowStageDescription
-		FROM PolicyInsurance.WTWorkflowTaskData
-		WHERE ReferenceNo = @ReferenceNo
-		AND RowStatus = 0
-		
+	BEGIN
+		DECLARE @WorkflowStageDescriptionPolicy VARCHAR(50)
+		--Retrieve WorkflowStageDescription
+		select @WorkflowStageDescriptionPolicy = StageDescription
+		FROM PolicyInsurance.WorkflowStage
+		WHERE StageCode = @WorkflowStageCode
+		and RowStatus = 0
+
 		--INSERT WTWORKFLOWDATAFIELD
 		insert PolicyInsurance.WTWorkflowDataField
 		(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,DataFieldName,DataFieldValue,CreatedBy,CreateDate)
@@ -55,7 +51,7 @@ BEGIN
 			@SerialNo,
 			@CanvasName,
 			@WorkflowStageCode,
-			@WorkflowStageDescription,
+			@WorkflowStageDescriptionPolicy,
 			@DataFieldName,
 			@DataFieldValue,
 			'System',
@@ -63,18 +59,7 @@ BEGIN
 		)				
 	END
 	ELSE
-	BEGIN
-		--RETRIEVE WTWORKFLOWTASKDATA
-		select 
-			@SerialNo = SerialNo,
-			@CanvasName = CanvasName,
-			@WorkflowStageCode = WorkflowStageCode,
-			@WorkflowStageDescription = WorkflowStageDescription
-		FROM Claim.WTWorkflowTaskData
-		WHERE ReferenceNo = @ReferenceNo
-		AND RowStatus = 0
-		
-		--INSERT WTWORKFLOWDATAFIELD
+	BEGIN		
 		insert Claim.WTWorkflowDataField
 		(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,DataFieldName,DataFieldValue,CreatedBy,CreateDate)
 		VALUES 

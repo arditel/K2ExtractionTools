@@ -14,10 +14,8 @@ namespace K2ExtractionTools
     class Program
     {
         private static SCConnectionStringBuilder _connection;
-        private static string _connectionString;
-        private static string _k2User;
-        private static Program _instance;
-        private static bool _isDevelopment;
+        private static string _connectionString;        
+        private static Program _instance;        
         
         private const string PERCENT = "%";
         private const string PREFIX_K2USER = "K2:";
@@ -37,49 +35,38 @@ namespace K2ExtractionTools
 
         static void Main(string[] args)
         {
-            var workflowTypeColl = ConfigurationManager.AppSettings["WorkflowType"].Split(';').ToList();
-            LoadConfiguration();
+            var workflowTypeColl = ConfigurationManager.AppSettings["WorkflowType"].Split(';').ToList();            
 
             foreach (var _workflowType in workflowTypeColl)
             {
                 ProcessK2Data(_workflowType);
             }
-        }
-
-        private static void LoadConfiguration()
-        {
-            _k2User = ConfigurationManager.AppSettings["K2User"];
-            _isDevelopment = Convert.ToBoolean(ConfigurationManager.AppSettings["IsDevelopment"].ToString());
-        }
+        }        
 
         private static SCConnectionStringBuilder Connection
         {
             get
             {
-                if (_isDevelopment)
+                /*Debug*/
+                return _connection ?? (_connection = new SCConnectionStringBuilder
                 {
-                    return _connection ?? (_connection = new SCConnectionStringBuilder
-                    {
-                        Host = ConfigurationManager.AppSettings["K2ServerAddress"],
-                        Port = Convert.ToUInt32(ConfigurationManager.AppSettings["K2Port"]),
-                        UserID = _k2User,
-                        Password = ConfigurationManager.AppSettings["K2Password"],
-                        IsPrimaryLogin = true,
-                        SecurityLabelName = "K2",
-                        Integrated = false
-                    });
-                }
-                else
-                {
-                    return _connection ?? (_connection = new SCConnectionStringBuilder
-                    {
-                        Host = ConfigurationManager.AppSettings["K2ServerAddress"],
-                        Port = Convert.ToUInt32(ConfigurationManager.AppSettings["K2Port"]),                        
-                        IsPrimaryLogin = true,
-                        SecurityLabelName = "K2",
-                        Integrated = true
-                    });
-                }
+                    Host = K2ServerName,
+                    Port = Convert.ToUInt32(ConfigurationManager.AppSettings["K2Port"]),    
+                    UserID = "beyond\\ofh",
+                    Password = "ITG@nt1P455QC",
+                    IsPrimaryLogin = true,
+                    SecurityLabelName = "K2",
+                    Integrated = false                        
+                }); 
+                 
+                //return _connection ?? (_connection = new SCConnectionStringBuilder
+                //{
+                //    Host = K2ServerName,
+                //    Port = Convert.ToUInt32(ConfigurationManager.AppSettings["K2Port"]),                        
+                //    IsPrimaryLogin = true,
+                //    SecurityLabelName = "K2",
+                //    Integrated = true                        
+                //});              
             }
         }
 
@@ -91,6 +78,14 @@ namespace K2ExtractionTools
                     _connectionString = Connection.ToString();
 
                 return _connectionString;
+            }
+        }
+
+        private static string K2ServerName
+        {
+            get
+            {
+                return GetInstance().K2ServerNameFromConfigurationItems();
             }
         }
 
@@ -119,6 +114,11 @@ namespace K2ExtractionTools
         {
             new K2WorklistDAL().UpdateWorklistSlotStatusByProcInstID(procInstID, referenceNo, workflowStage, workflowType);
         }
+
+        private string K2ServerNameFromConfigurationItems()
+        {
+            return new WTWorkflowTaskDataDAL().RetrieveK2ServerNameFromConfigurationItems();
+        }
         #endregion
 
         public static void ProcessK2Data(string workflowType)
@@ -135,7 +135,7 @@ namespace K2ExtractionTools
                 foreach (var data in taskDataList)
                 {
                     procInstId = GetInstance().ProcessWTWorkflowTaskDataPIC(data, workflowType);
-                    GetK2DataField(procInstId, item.ReferenceNo, workflowType);
+                    GetK2DataField(data.DataFields,workflowType);
                     GetInstance().UpdateK2DataStatus(procInstId, data.ReferenceNo, data.WorkflowStage, workflowType);
                 }
             }      
@@ -154,13 +154,16 @@ namespace K2ExtractionTools
 
             foreach (WorkflowDataActorEntities item in listDataActor)
             {
-                WTWorkflowTaskDataEntities workflowTaskData = new WTWorkflowTaskDataEntities();                
+                WTWorkflowTaskDataEntities workflowTaskData = new WTWorkflowTaskDataEntities();
+                IList<WTWorkflowDataFieldEntities> dFieldColl = new List<WTWorkflowDataFieldEntities>();
+                WTWorkflowDataFieldEntities dataField;
 
                 try
                 {
-                    connection.Open(ConfigurationManager.AppSettings["K2ServerAddress"], ConnectionString);
+                    connection.Open(K2ServerName, ConnectionString);
 
                     connection.ImpersonateUser(string.Concat(PREFIX_K2USER, item.Actor));
+                    workflowTaskData.Actor = item.Actor;
 
                     var worklistData = connection.OpenWorklist(_worklistCriteria);
                     var _worklist = (from t in worklistData.OfType<WorklistItem>() select t).ToList<WorklistItem>();
@@ -175,10 +178,28 @@ namespace K2ExtractionTools
                         workflowTaskData.Originator = _wlItem.ProcessInstance.Originator.Name;
                         workflowTaskData.Status = _wlItem.ProcessInstance.Status1.ToString();
                         workflowTaskData.SubmitDate = _wlItem.ProcessInstance.StartDate;
-                        workflowTaskData.WorkflowStage = _wlItem.ProcessInstance.DataFields["Stage"].Value as string;
+
+                        if(workflowType.ToUpper() == CLAIMWORKFLOW)
+                            workflowTaskData.WorkflowStage = _wlItem.ProcessInstance.DataFields["Stage"].Value as string;
+                        else
+                            workflowTaskData.WorkflowStage = _wlItem.ProcessInstance.DataFields["StageCode"].Value as string;
 
                         if (workflowType.ToUpper() == POLICYWORKFLOW || (workflowType.ToUpper() == CLAIMWORKFLOW && workflowTaskData.WorkflowStage == item.WorkflowStage))
                         {
+                            for (int i = 0; i < _wlItem.ProcessInstance.DataFields.Count; i++)
+                            {
+                                dataField = new WTWorkflowDataFieldEntities();
+                                dataField.ReferenceNo = workflowTaskData.ReferenceNo;
+                                dataField.SerialNo = workflowTaskData.SerialNo;
+                                dataField.CanvasName = workflowTaskData.CanvasName;
+                                dataField.WorkflowStageCode = workflowTaskData.WorkflowStageCode;
+                                dataField.WOrkflowStageDescription = workflowTaskData.WorkflowStage;
+                                dataField.DataFieldName = _wlItem.ProcessInstance.DataFields[i].Name;
+                                dataField.DataFieldValue = _wlItem.ProcessInstance.DataFields[i].Value.ToString();
+
+                                dFieldColl.Add(dataField);                          
+                            }
+                            workflowTaskData.DataFields = dFieldColl.ToList();
                             listTaskData.Add(workflowTaskData);
                         }
                     }
@@ -199,35 +220,22 @@ namespace K2ExtractionTools
             return listTaskData;
         }
 
-        public static void GetK2DataField(int procIntsID, string referenceNo, string workflowType)
+        public static void GetK2DataField(List<WTWorkflowDataFieldEntities> dataFields, string workflowType)
         {
             WTWorkflowDataFieldEntities dataField;
-            var connection = new Connection();
+            foreach (var dField in dataFields)
+            {
+                dataField = new WTWorkflowDataFieldEntities();
+                dataField.ReferenceNo = dField.ReferenceNo;
+                dataField.SerialNo = dField.SerialNo;
+                dataField.CanvasName = dField.CanvasName;
+                dataField.WorkflowStageCode = dField.WorkflowStageCode;
+                dataField.WOrkflowStageDescription = dField.WOrkflowStageDescription;
+                dataField.DataFieldName = dField.DataFieldName;
+                dataField.DataFieldValue = dField.DataFieldValue;
 
-            try
-            {
-                connection.Open(ConfigurationManager.AppSettings["K2ServerAddress"],ConnectionString);
-                ProcessInstance objProcessInst = connection.OpenProcessInstance(Convert.ToInt32(procIntsID));
-                foreach (DataField dField in objProcessInst.DataFields)
-                {
-                    dataField = new WTWorkflowDataFieldEntities();
-                    dataField.ReferenceNo = referenceNo;
-                    dataField.DataFieldName = dField.Name;
-                    dataField.DataFieldValue = dField.Value.ToString();
-                    
-                    GetInstance().InsertWTWorkflowDataField(dataField, workflowType);                    
-                }
-                connection.Close();
+                GetInstance().InsertWTWorkflowDataField(dataField, workflowType);
             }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
-            finally
-            {
-                connection.Close();
-                connection.Dispose();
-            }            
         }
     }
 }

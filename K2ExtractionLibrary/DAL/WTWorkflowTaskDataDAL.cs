@@ -15,7 +15,11 @@ namespace K2ExtractionLibrary.DAL
     {
         Database objDB;
 
-        static string _connectionString;
+        private static string _connectionString;
+
+        private const string APPLICATION_NAME = "General";
+        private const string WORKFLOW_CONFIG_NAME = "Workflow";
+        private const string K2_SERVERNAME_CONFIG_KEY = "K2Server";
 
         public WTWorkflowTaskDataDAL()
         {
@@ -87,6 +91,10 @@ namespace K2ExtractionLibrary.DAL
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_InsertWTWorkflowDataField"))
             {                
                 objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, param.ReferenceNo);
+                objDB.AddInParameter(objCmd, "@SerialNo", DbType.String, param.SerialNo);
+                objDB.AddInParameter(objCmd, "@CanvasName", DbType.String, param.CanvasName);
+                objDB.AddInParameter(objCmd, "@WorkflowStageCode", DbType.String, param.WorkflowStageCode);
+                objDB.AddInParameter(objCmd, "@WorkflowStageDescription", DbType.String, param.WOrkflowStageDescription);
                 objDB.AddInParameter(objCmd, "@DataFieldName", DbType.String, param.DataFieldName);
                 objDB.AddInParameter(objCmd, "@DataFIeldValue", DbType.String, param.DataFieldValue);
                 objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);
@@ -128,6 +136,30 @@ namespace K2ExtractionLibrary.DAL
             return rows;
         }
 
+        public string RetrieveK2ServerNameFromConfigurationItems()
+        {
+            string k2ServerName = string.Empty;
+
+            objDB = new SqlDatabase(_connectionString);
+
+            using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_RetrieveConfigurationItemsValueByCategoryNameAndKey"))
+            {
+                objDB.AddInParameter(objCmd, "@AppName", DbType.String, APPLICATION_NAME);
+                objDB.AddInParameter(objCmd, "@CategoryName", DbType.String, WORKFLOW_CONFIG_NAME);
+                objDB.AddInParameter(objCmd, "@Key", DbType.String, K2_SERVERNAME_CONFIG_KEY);
+
+                try
+                {
+                    k2ServerName = Convert.ToString(objDB.ExecuteScalar(objCmd));
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+            }
+
+            return k2ServerName;
+        }
         #region Mapping
         private IList<WorkflowDataProcessedEntities> MapWorkflowDataProcessed(IDataReader reader)
         {

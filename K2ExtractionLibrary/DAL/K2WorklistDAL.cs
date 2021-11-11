@@ -13,8 +13,7 @@ namespace K2ExtractionLibrary.DAL
     public class K2WorklistDAL
     {
         Database objDB;
-        static string _connectionString;
-        static string _serverName;
+        static string _connectionString;        
         
         public K2WorklistDAL()
         {
@@ -141,7 +140,7 @@ namespace K2ExtractionLibrary.DAL
 
             UpdateWorklistSlotStatus(data);
         }
-
+        
         #region Mapping
         private WorklistHeader MapWorklistHeader(IDataReader reader)
         {

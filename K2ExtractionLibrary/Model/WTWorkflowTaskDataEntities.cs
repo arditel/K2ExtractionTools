@@ -15,6 +15,8 @@ namespace K2ExtractionLibrary.Model
         public string Originator { get; set; }
         public string Status { get; set; }
         public DateTime SubmitDate { get; set; }
-        public string WorkflowStage { get; set; } 
+        public string WorkflowStage { get; set; }
+        public string Actor { get; set; }
+        public List<WTWorkflowDataFieldEntities> DataFields { get; set; }
     }
 }
