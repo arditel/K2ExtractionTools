@@ -24,7 +24,7 @@ namespace K2ExtractionLibrary.DAL
         {
             objDB = new SqlDatabase(_connectionString);
 
-            string query = "UPDATE [K2Server].[Server].[WorklistSlot] SET Status = 2 WHERE HeaderID = @HeaderID and ProcInstID = @ProcInstID";
+            string query = "UPDATE [K2Server].[Server].[WorklistSlot] SET Status = -1 WHERE HeaderID = @HeaderID and ProcInstID = @ProcInstID";
 
             using (DbCommand objCmd = objDB.GetSqlStringCommand(query))
             {
