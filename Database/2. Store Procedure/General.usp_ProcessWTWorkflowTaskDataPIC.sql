@@ -1,26 +1,16 @@
 use BeyondDB
 GO
--- ================================================
--- Template generated from Template Explorer using:
--- Create Procedure (New Menu).SQL
---
--- Use the Specify Values for Template Parameters 
--- command (Ctrl-Shift-M) to fill in the parameter 
--- values below.
---
--- This block of comments will not be included in
--- the definition of the procedure.
--- ================================================
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
 -- =============================================
--- Author:		<Author,,Name>
--- Create date: <Create Date,,>
--- Description:	<Description,,>
+-- Author:		AEK
+-- Create date: 2021/11/08
+-- Description:	Insert to WTWorkflowDataPIC #248URF2021
 -- =============================================
-ALTER PROCEDURE General.usp_ProcessWTWorkflowTaskDataPIC
+CREATE PROCEDURE General.usp_ProcessWTWorkflowTaskDataPIC
 	-- Add the parameters for the stored procedure here
 	@ReferenceNo Varchar(50),
 	@SerialNo varchar(10),

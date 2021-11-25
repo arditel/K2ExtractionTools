@@ -1,24 +1,15 @@
 use BeyondDB
 GO
--- ================================================
--- Template generated from Template Explorer using:
--- Create Procedure (New Menu).SQL
---
--- Use the Specify Values for Template Parameters 
--- command (Ctrl-Shift-M) to fill in the parameter 
--- values below.
---
--- This block of comments will not be included in
--- the definition of the procedure.
--- ================================================
+
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
 -- =============================================
--- Author:		<Author,,Name>
--- Create date: <Create Date,,>
--- Description:	<Description,,>
+-- Author:		AEK
+-- Create date: 2021/11/08
+-- Description:	Retrieve data to be processed #248URF2021
 -- =============================================
 CREATE PROCEDURE General.usp_WorkflowTaskDataProcessed
 	@WorkflowType varchar(20)

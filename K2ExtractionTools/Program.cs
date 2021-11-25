@@ -48,26 +48,26 @@ namespace K2ExtractionTools
             get
             {
                 /*START DEBUG*/
-                return _connection ?? (_connection = new SCConnectionStringBuilder
-                {
-                    Host = K2ServerName,
-                    Port = Convert.ToUInt32(ConfigurationManager.AppSettings["K2Port"]),
-                    UserID = "beyond\\ofh",
-                    Password = "ITG@nt1P455QC",
-                    IsPrimaryLogin = true,
-                    SecurityLabelName = "K2",
-                    Integrated = false
-                }); 
-                /*END DEBUG*/
-
                 //return _connection ?? (_connection = new SCConnectionStringBuilder
                 //{
                 //    Host = K2ServerName,
                 //    Port = Convert.ToUInt32(ConfigurationManager.AppSettings["K2Port"]),
+                //    UserID = "beyond\\ofh",
+                //    Password = "ITG@nt1P455QC",
                 //    IsPrimaryLogin = true,
                 //    SecurityLabelName = "K2",
-                //    Integrated = true
-                //});              
+                //    Integrated = false
+                //}); 
+                /*END DEBUG*/
+
+                return _connection ?? (_connection = new SCConnectionStringBuilder
+                {
+                    Host = K2ServerName,
+                    Port = Convert.ToUInt32(ConfigurationManager.AppSettings["K2Port"]),
+                    IsPrimaryLogin = true,
+                    SecurityLabelName = "K2",
+                    Integrated = true
+                });              
             }
         }
 

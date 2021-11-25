@@ -1,24 +1,14 @@
 use BeyondDB
 GO
--- ================================================
--- Template generated from Template Explorer using:
--- Create Procedure (New Menu).SQL
---
--- Use the Specify Values for Template Parameters 
--- command (Ctrl-Shift-M) to fill in the parameter 
--- values below.
---
--- This block of comments will not be included in
--- the definition of the procedure.
--- ================================================
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
 -- =============================================
--- Author:		<Author,,Name>
--- Create date: <Create Date,,>
--- Description:	<Description,,>
+-- Author:		AEK
+-- Create date: 2021/11/8
+-- Description:	Insert to PolicyInsurance.WTWorkflowDataField or Claim.WTWorkflowDataField #0248URF2021
 -- =============================================
 CREATE PROCEDURE General.usp_InsertWTWorkflowDataField
 	-- Add the parameters for the stored procedure here

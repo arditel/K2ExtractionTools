@@ -6,9 +6,9 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 -- =============================================
--- Author:		<Author,,Name>
--- Create date: <Create Date,,>
--- Description:	<Description,,>
+-- Author:		AEK
+-- Create date: 2021/11/08
+-- Description:	Backup WorklistSlot data #248URF2021
 -- =============================================
 CREATE PROCEDURE General.usp_InsertWorklistSlotLog
 	-- Add the parameters for the stored procedure here
