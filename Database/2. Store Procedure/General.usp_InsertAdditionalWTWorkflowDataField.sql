@@ -10,7 +10,7 @@ GO
 -- Create date: 2022/1/11
 -- Description:	Insert additional data field #0248URF2021
 -- =============================================
-ALTER PROCEDURE General.usp_InsertAdditionalWTWorkflowDataField
+CREATE PROCEDURE General.usp_InsertAdditionalWTWorkflowDataField
 	-- Add the parameters for the stored procedure here
 	@ReferenceNo Varchar(50),
 	@SerialNo varchar(10),	

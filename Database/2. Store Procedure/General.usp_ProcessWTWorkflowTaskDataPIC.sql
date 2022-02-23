@@ -91,7 +91,7 @@ BEGIN
 			(
 				select A.WorkFlowTaskAssignmentID
 				from #tmpWF_Policy A
-				inner join #tmpRELBG B on A.Actor = B.Actor
+				inner join #tmpRELBG B on General.udf_RemoveDomainFromUser(A.Actor) = General.udf_RemoveDomainFromUser(B.Actor)
 				where A.WorkFlowTaskAssignmentID < B.WorkFlowTaskAssignmentID and A.WorkFlowAssignmentStatusCode = 'ASS'
 			)		
 
@@ -143,7 +143,7 @@ BEGIN
 			UPDATE PolicyInsurance.WTWorkflowDataPIC
 			SET IsOpen = 1, ItemOpenedDate = TMP.WTACreatedDate
 			FROM PolicyInsurance.WTWorkflowDataPIC PIC
-				INNER JOIN #tmpWF_Policy TMP on PIC.PICUser = TMP.Actor
+				INNER JOIN #tmpWF_Policy TMP on General.udf_RemoveDomainFromUser(PIC.PICUser) = General.udf_RemoveDomainFromUser(TMP.Actor)
 			WHERE PIC.ReferenceNo = @ReferenceNo 
 				AND TMP.WorkFlowAssignmentStatusCode = 'IOP'
 				AND @StatusCode <> 'REL' -- tidak update IsOpen jika statuscode terakhir Release
@@ -156,6 +156,37 @@ BEGIN
 	END
 	ELSE
 	BEGIN
+		DECLARE @WorkflowStageOri varchar(512)
+
+		SET @WorkflowStageOri = @WorkflowStage
+
+		IF(@CanvasName = 'SPC Process' AND LEN(@WorkflowStageCode) = 0)
+		BEGIN				
+			SET @WorkflowStageCode = 'SCSSPC'
+			SET @WorkflowStage = 'Print SPC'
+		END
+
+		DECLARE @isClaimUnattached bit,
+			@EnumOfClaimTypeCode varchar(10)
+		SET @isClaimUnattached = 0
+
+		select @EnumOfClaimTypeCode  = EnumOfClaimTypeCode from Claim.Claims where ClaimNo = @ReferenceNo
+
+		select @isClaimUnattached = 1
+		FROM Claim.WTWorkflowTaskData 
+		where ReferenceNo = @ReferenceNo and CanvasName = 'Claim Process' 
+		AND exists (select 1 from Claim.WTWorkflowTaskData where WorkflowStageCode = 'CLMPRC' and ReferenceNo = @ReferenceNo)
+		AND @EnumOfClaimTypeCode <> 'ATT'
+		
+		--case claim unattached WorkflowStage yg pertama diproses adalah stage CLMPRC
+		IF (@isClaimUnattached = 0 AND @CanvasName = 'Claim Process')
+		BEGIN
+			SET @WorkflowStageCode = 'CLMPRC'
+			SET @WorkflowStage = 'Claim Process'
+
+			SET @WorkflowStageOri = @WorkflowStage
+		END
+		
 		IF EXISTS (select 1 FROM Claim.WTWorkflowTaskData where ReferenceNo = @ReferenceNo and WorkflowStageCode is null)
 		BEGIN
 			--UPDATE WTWORKFLOWTASKDATA		
@@ -163,7 +194,7 @@ BEGIN
 			FROM Claim.WTWorkflowTaskData
 			WHERE ReferenceNo = @ReferenceNo
 			and RowStatus = 0
-			ORDER BY WTWorkflowTaskDataID desc
+			ORDER BY WTWorkflowTaskDataID desc			
 
 			UPDATE Claim.WTWorkflowTaskData
 			SET SerialNo = @SerialNo,
@@ -179,11 +210,20 @@ BEGIN
 				ModifiedDate = GETDATE()
 			WHERE WTWorkflowTaskDataID = @WTWorkflowTaskDataID
 		END
-		ELSE
+		ELSE IF NOT EXISTS (select 1 FROM Claim.WTWorkflowTaskData where ReferenceNo = @ReferenceNo and WorkflowStageDescription = @WorkflowStage)
 		BEGIN
-			INSERT Claim.WTWorkflowTaskData (ReferenceNo, SerialNo, CanvasName, WorkflowStageCode, WorkflowStageDescription, Folio, Originator, Status, StartDate, IsProcess, CreatedBy,CreateDate,RowStatus)
-			VALUES
-			( @ReferenceNo, @SerialNo, @CanvasName, @WorkflowStageCode, @WorkflowStage, @Folio, @Originator, @Status, @SubmitDate, 1, 'System',GETDATE(),0)
+			DECLARE @isInsertTaskData bit
+			SET @isInsertTaskData = 1
+
+			IF (@EnumOfClaimTypeCode = 'ATT' AND @WorkflowStageOri = 'Claim Unattached Approval')
+				SET @isInsertTaskData = 0
+
+			IF (@isInsertTaskData = 1 )
+			BEGIN
+				INSERT Claim.WTWorkflowTaskData (ReferenceNo, SerialNo, CanvasName, WorkflowStageCode, WorkflowStageDescription, Folio, Originator, Status, StartDate, IsProcess, CreatedBy,CreateDate,RowStatus)
+				VALUES
+				( @ReferenceNo, @SerialNo, @CanvasName, @WorkflowStageCode, @WorkflowStage, @Folio, @Originator, @Status, @SubmitDate, 1, 'System',GETDATE(),0)
+			END
 		END
 
 		--INSERT WTWORKFLOWDATAPIC
@@ -196,8 +236,64 @@ BEGIN
 			INNER JOIN Claim.WorkflowTaskAssignment B ON A.WorkflowTaskID = B.WorkflowTaskID
 			INNER JOIN General.WorkFlowAssignmentStatus C ON B.WorkflowAssignmentStatusID = C.WorkFlowAssignmentStatusID
 			WHERE ReferenceNo=@ReferenceNo 
-			AND B.WorkflowStage = @WorkflowStage
+			AND B.WorkflowStage = @WorkflowStageOri
 			ORDER BY WorkflowTaskAssignmentID
+
+			--START kondisi claim unattached
+			DECLARE @ClaimProcessUnAttached dbo.ids,
+				@ClaimProcessUnAttachedAction dbo.ids2,
+				@CountCPU int,
+				@j int = 1
+		
+			insert @ClaimProcessUnAttachedAction
+			select ROW_NUMBER() over (ORDER BY T.WorkflowTaskAssignmentID) as rn, T.WorkFlowTaskAssignmentID from #tmpWF_Claim T
+				inner join Claim.WorkFlowTaskAssignment WTA on T.WorkFlowTaskAssignmentID = WTA.WorkFlowTaskAssignmentID
+				where WTA.Action in ('NeedApproval','NoApproval')
+				and WTA.WorkFlowStage = 'Claim Process'
+				and WTA.RowStatus = 0
+		
+			select @CountCPU = count(1) from @ClaimProcessUnAttachedAction 
+
+			WHILE (@j <= @CountCPU)
+			BEGIN
+				;WITH CTE AS
+				(
+					select ID2 from @ClaimProcessUnAttachedAction where ID1 = @j
+				),
+				CTE_ClaimProcessUnAttachedOutstage AS
+				(
+					select TOP 1 WorkFlowTaskAssignmentID FROM #tmpWF_Claim T 
+					where WorkFlowTaskAssignmentID > (select ID2 from CTE) 
+					AND @WorkflowStageOri = 'Claim Process'
+					AND WorkFlowAssignmentStatusCode = 'OUTST'
+					order by WorkFlowTaskAssignmentID
+				),
+				CTE_ClaimUnAttachedHasBeenAttached AS
+				(
+					select TMP.WorkFlowTaskAssignmentID 
+					FROM #tmpWF_Claim TMP
+					INNER JOIN Claim.WorkFlowTaskAssignment WTA on TMP.WorkFlowTaskAssignmentID = WTA.WorkFlowTaskAssignmentID
+					INNER JOIN Claim.WorkFlowTask WT on WT.WorkFlowTaskID = WTA.WorkFlowTaskID
+					INNER JOIN Claim.Claims C on C.ClaimNo = WT.ReferenceNo
+					WHERE C.EnumOfClaimTypeCode = 'ATT'
+					AND WTA.RowStatus = 0
+					AND WT.RowStatus = 0
+					AND C.RowStatus = 0
+					AND @WorkflowStageOri = 'Claim Unattached Approval'
+				)
+				insert into @ClaimProcessUnAttached
+				select * from CTE
+				UNION ALL
+				select * from CTE_ClaimProcessUnAttachedOutstage
+				UNION ALL
+				select * from CTE_ClaimUnAttachedHasBeenAttached
+
+				SET @j = @j + 1;
+			END
+
+			delete #tmpWF_Claim
+			where WorkFlowTaskAssignmentID in (select id from @ClaimProcessUnAttached)
+		--END kondisi claim unattached
 
 			--ambil workflow terakhir sebelum assigned
 			select Top 1 @tmpID = WorkflowTaskAssignmentID
@@ -218,16 +314,59 @@ BEGIN
 			(
 				select A.WorkFlowTaskAssignmentID
 				from #tmpWF_Claim A
-				inner join #tmpRELBG_Claim B on A.Actor = B.Actor
+				inner join #tmpRELBG_Claim B on General.udf_RemoveDomainFromUser(A.Actor) = General.udf_RemoveDomainFromUser(B.Actor)
 				where A.WorkFlowTaskAssignmentID < B.WorkFlowTaskAssignmentID and A.WorkFlowAssignmentStatusCode = 'ASS'
 			)		
 
+			CREATE TABLE #tmpASS_Claim
+			(
+				Actor varchar(512)
+			)
+
 			--Get assigned actor
-			SELECT DISTINCT Actor
-			into #tmpASS_Claim
-			FROM #tmpWF_Claim
-			WHERE WorkFlowAssignmentStatusCode = 'ASS'
-			
+			IF (@WorkflowStageOri = 'Claim Unattached Approval')
+			BEGIN 
+				declare @ActorClaimUnattached as table
+				(
+					id int,
+					Actor varchar(512)
+				)
+				
+				DECLARE @iteration int,
+					@countClaimUnattachedActor int,
+					@Actor varchar(512)
+				SET @iteration = 1
+				SET @countClaimUnattachedActor = 0
+
+				insert @ActorClaimUnattached
+				select ROW_NUMBER() over(order by actor), Actor from
+				(
+					select distinct Actor from #tmpWF_Claim where WorkFlowAssignmentStatusCode = 'ASS'
+				) as A
+
+				select @countClaimUnattachedActor = count(1) from @ActorClaimUnattached
+
+				WHILE(@iteration <= @countClaimUnattachedActor)
+				BEGIN
+					SET @Actor = ''
+					select @Actor = Actor from @ActorClaimUnattached where id = @iteration
+
+					insert #tmpASS_Claim
+					select Data from General.udf_SplitString(@Actor,';')
+					
+					SET @iteration = @iteration + 1
+				END				
+			END
+			ELSE
+			BEGIN			
+				INSERT #tmpASS_Claim
+				SELECT DISTINCT Actor			
+				FROM #tmpWF_Claim
+				WHERE WorkFlowAssignmentStatusCode = 'ASS'
+			END
+
+			DELETE #tmpASS_Claim where Actor is null
+
 			--Get Domain Prefix
 			select top 1 @DomainPrefix = LEFT(Actor,CHARINDEX('\',Actor,0)) FROM #tmpASS_Claim
 
@@ -274,7 +413,7 @@ BEGIN
 			UPDATE Claim.WTWorkflowDataPIC
 			SET IsOpen = 1, ItemOpenedDate = TMP.WTACreatedDate
 			FROM Claim.WTWorkflowDataPIC PIC
-				INNER JOIN #tmpWF_Claim TMP on PIC.PICUser = TMP.Actor
+				INNER JOIN #tmpWF_Claim TMP on General.udf_RemoveDomainFromUser(PIC.PICUser) = General.udf_RemoveDomainFromUser(TMP.Actor)
 			WHERE PIC.ReferenceNo = @ReferenceNo 
 				AND PIC.WorkflowStageDescription = @WorkflowStage
 				AND TMP.WorkFlowAssignmentStatusCode = 'IOP'
@@ -284,6 +423,8 @@ BEGIN
 				DROP TABLE #tmpWF_Claim
 			IF OBJECT_ID('tempdb..#tmpASS_Claim') is not null
 				DROP TABLE #tmpASS_Claim
+			IF OBJECT_ID('tempdb..#tmpRELBG_Claim') is not null
+				DROP TABLE #tmpRELBG_Claim
 		END
 	END
 
