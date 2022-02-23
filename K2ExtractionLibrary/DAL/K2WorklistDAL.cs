@@ -13,11 +13,13 @@ namespace K2ExtractionLibrary.DAL
     public class K2WorklistDAL
     {
         Database objDB;
-        static string _connectionString;        
+        static string _connectionString;
+        static string _connStringBeyondDB;
         
         public K2WorklistDAL()
         {
             _connectionString = ConfigurationManager.ConnectionStrings["K2ServerConnString"].ToString();
+            _connStringBeyondDB = ConfigurationManager.ConnectionStrings["DefaultConnString"].ToString();
         }
 
         private void UpdateWorklistSlotStatus(WorklistHeader worklistHeader)
@@ -42,14 +44,14 @@ namespace K2ExtractionLibrary.DAL
             }
         }
 
-        private WorklistHeader RetrieveWorklistHeaderData(int procInstID)
+        private List<WorklistHeader> RetrieveWorklistHeaderData(int procInstID)
         {
             IDataReader reader = null;
-            WorklistHeader worklistHeader = null;
+            List<WorklistHeader> worklistHeader = new List<WorklistHeader>();
 
             objDB = new SqlDatabase(_connectionString);
 
-            string query = "SELECT TOP 1 ID, ProcInstID FROM [K2Server].[Server].[WorklistHeader] where ProcInstID = @ProcInstID";
+            string query = "SELECT DISTINCT ID, ProcInstID FROM [K2Server].[Server].[WorklistHeader] where ProcInstID = @ProcInstID";
             
             using (DbCommand objCmd = objDB.GetSqlStringCommand(query))
             {
@@ -70,7 +72,7 @@ namespace K2ExtractionLibrary.DAL
 
         private void InsertWorlistSlotLog(WorklistSlotLog worklistSlot)
         {
-            objDB = new SqlDatabase(_connectionString);
+            objDB = new SqlDatabase(_connStringBeyondDB);
 
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_InsertWorklistSlotLog"))
             {
@@ -108,7 +110,7 @@ namespace K2ExtractionLibrary.DAL
             string query = "SELECT TOP 1 '" + referenceNo + "' as ReferenceNo,'" + workflowStage + "' as WorkflowStage,'" + workflowType + "' as WorkflowType, " +
                                 "HeaderID, ProcInstID, ActInstID, SlotFieldID, EventInstID, ActionerID, Status, Verify, AllocDate " + 
                                 "FROM [K2Server].[Server].[WorklistSlot] " + 
-                                "WHERE HeaderID = @HeaderID and ProcInstID = @ProcInstID";
+                                "WHERE HeaderID = @HeaderID and ProcInstID = @ProcInstID and Status <> 99";
 
             using (DbCommand objCmd = objDB.GetSqlStringCommand(query))
             {
@@ -130,19 +132,24 @@ namespace K2ExtractionLibrary.DAL
 
         public void UpdateWorklistSlotStatusByProcInstID(int procInstID, string referenceNo, string workflowStage, string workflowType)
         {
-            WorklistHeader data = new WorklistHeader();
+            IList<WorklistHeader> dataList = new List<WorklistHeader>();
             WorklistSlotLog dataWorklistSlotLog = new WorklistSlotLog();
 
-            data = RetrieveWorklistHeaderData(procInstID);
+            dataList = RetrieveWorklistHeaderData(procInstID);
 
-            dataWorklistSlotLog = RetrieveWorklistSlotData(data, referenceNo, workflowStage, workflowType);
-            InsertWorlistSlotLog(dataWorklistSlotLog);
-
-            UpdateWorklistSlotStatus(data);
+            foreach (var dataItem in dataList)
+            {
+                dataWorklistSlotLog = RetrieveWorklistSlotData(dataItem, referenceNo, workflowStage, workflowType);
+                if (dataWorklistSlotLog != null)
+                {
+                    InsertWorlistSlotLog(dataWorklistSlotLog);
+                }
+                UpdateWorklistSlotStatus(dataItem);
+            }
         }
         
         #region Mapping
-        private WorklistHeader MapWorklistHeader(IDataReader reader)
+        private List<WorklistHeader> MapWorklistHeader(IDataReader reader)
         {
             IList<WorklistHeader> entities = new List<WorklistHeader>();
 
@@ -158,7 +165,7 @@ namespace K2ExtractionLibrary.DAL
                 entities.Add(entity);
             }
 
-            return entities.FirstOrDefault();
+            return entities.ToList();
         }
 
         private WorklistSlotLog MapWorklistSlotLog(IDataReader reader)

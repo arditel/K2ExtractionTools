@@ -87,7 +87,6 @@ namespace K2ExtractionLibrary.DAL
         {
             objDB = new SqlDatabase(_connectionString);
             
-
             using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_InsertWTWorkflowDataField"))
             {                
                 objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, param.ReferenceNo);
@@ -108,6 +107,28 @@ namespace K2ExtractionLibrary.DAL
                     throw ex;
                 }
             }            
+        }
+
+        public void InsertAdditionalWTWorkflowDataField(WTWorkflowTaskDataEntities param, string workflowType)
+        {
+            objDB = new SqlDatabase(_connectionString);
+
+            using (DbCommand objCmd = objDB.GetStoredProcCommand("General.usp_InsertAdditionalWTWorkflowDataField"))
+            {
+                objDB.AddInParameter(objCmd, "@ReferenceNo", DbType.String, param.ReferenceNo);
+                objDB.AddInParameter(objCmd, "@SerialNo", DbType.String, param.SerialNo);               
+                objDB.AddInParameter(objCmd, "@WorkflowStageCode", DbType.String, param.WorkflowStageCode); 
+                objDB.AddInParameter(objCmd, "@WorkflowType", DbType.String, workflowType);
+
+                try
+                {
+                    objDB.ExecuteNonQuery(objCmd);
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+            }   
         }
 
         public IList<WorkflowDataProcessedEntities> WorkflowTaskDataProcessed(string workflowType)

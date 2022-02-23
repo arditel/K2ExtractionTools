@@ -57,7 +57,7 @@ namespace K2ExtractionTools
                 //    IsPrimaryLogin = true,
                 //    SecurityLabelName = "K2",
                 //    Integrated = false
-                //}); 
+                //});
                 /*END DEBUG*/
 
                 return _connection ?? (_connection = new SCConnectionStringBuilder
@@ -106,6 +106,11 @@ namespace K2ExtractionTools
             new WTWorkflowTaskDataDAL().InsertWTWorkflowDataField(entity, workflowType);
         }
 
+        private void InsertAdditionalWTWorkflowDataField(WTWorkflowTaskDataEntities entity, string workflowType)
+        {
+            new WTWorkflowTaskDataDAL().InsertAdditionalWTWorkflowDataField(entity, workflowType);
+        }
+
         private IList<WorkflowDataProcessedEntities> WorkflowTaskDataProcessed(string workflowType)
         {
             return new WTWorkflowTaskDataDAL().WorkflowTaskDataProcessed(workflowType);
@@ -136,7 +141,7 @@ namespace K2ExtractionTools
                 foreach (var data in taskDataList)
                 {
                     procInstId = GetInstance().ProcessWTWorkflowTaskDataPIC(data, workflowType);
-                    GetK2DataField(data.DataFields,workflowType);
+                    GetK2DataFieldComplete(data,workflowType);
                     GetInstance().UpdateK2DataStatus(procInstId, data.ReferenceNo, data.WorkflowStage, workflowType);
                 }
             }      
@@ -155,7 +160,7 @@ namespace K2ExtractionTools
 
             foreach (WorkflowDataActorEntities item in listDataActor)
             {
-                WTWorkflowTaskDataEntities workflowTaskData = new WTWorkflowTaskDataEntities();
+                WTWorkflowTaskDataEntities workflowTaskData;
                 IList<WTWorkflowDataFieldEntities> dFieldColl = new List<WTWorkflowDataFieldEntities>();
                 WTWorkflowDataFieldEntities dataField;
 
@@ -163,14 +168,14 @@ namespace K2ExtractionTools
                 {
                     connection.Open(K2ServerName, ConnectionString);
 
-                    connection.ImpersonateUser(string.Concat(PREFIX_K2USER, item.Actor));
-                    workflowTaskData.Actor = item.Actor;
+                    connection.ImpersonateUser(string.Concat(PREFIX_K2USER, item.Actor));                    
 
                     var worklistData = connection.OpenWorklist(_worklistCriteria);
                     var _worklist = (from t in worklistData.OfType<WorklistItem>() select t).ToList<WorklistItem>();
 
                     foreach (WorklistItem _wlItem in _worklist)
                     {
+                        workflowTaskData = new WTWorkflowTaskDataEntities();
                         workflowTaskData.SerialNo = _wlItem.SerialNumber;
                         workflowTaskData.ReferenceNo = _wlItem.ProcessInstance.DataFields["ReferenceNo"].Value as string;
                         workflowTaskData.CanvasName = _wlItem.ProcessInstance.Name;
@@ -179,6 +184,8 @@ namespace K2ExtractionTools
                         workflowTaskData.Originator = _wlItem.ProcessInstance.Originator.Name;
                         workflowTaskData.Status = _wlItem.ProcessInstance.Status1.ToString();
                         workflowTaskData.SubmitDate = _wlItem.ProcessInstance.StartDate;
+
+                        workflowTaskData.Actor = item.Actor;
 
                         if(workflowType.ToUpper() == CLAIMWORKFLOW)
                             workflowTaskData.WorkflowStage = _wlItem.ProcessInstance.DataFields["Stage"].Value as string;
@@ -237,6 +244,12 @@ namespace K2ExtractionTools
 
                 GetInstance().InsertWTWorkflowDataField(dataField, workflowType);
             }
+        }
+
+        public static void GetK2DataFieldComplete(WTWorkflowTaskDataEntities taskData, string workflowType)
+        {
+            GetK2DataField(taskData.DataFields, workflowType);
+            GetInstance().InsertAdditionalWTWorkflowDataField(taskData, workflowType);
         }
     }
 }
