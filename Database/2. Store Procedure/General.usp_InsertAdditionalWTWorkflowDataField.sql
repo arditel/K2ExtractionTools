@@ -18,9 +18,28 @@ CREATE PROCEDURE General.usp_InsertAdditionalWTWorkflowDataField
 	@WorkflowType varchar(20)
 AS
 BEGIN
+	--Additional data field
+	DECLARE @TempDataField as TABLE
+	(
+		ReferenceNo varchar(50),
+		SerialNo varchar(10),
+		DataFieldName varchar(255),
+		DataFieldValue varchar(max)
+	)
 
 	IF(@WorkflowType = 'Claim')
 	BEGIN
+		--Set CanvasName and WorkflowStageDescription
+		DECLARE @CanvasName varchar(100),
+				@WorkflowStageDescription varchar(50)
+
+		SELECT TOP 1 @CanvasName = CanvasName
+			,@WorkflowStageDescription = WorkflowStageDescription
+		FROM Claim.WTWorkflowDataField
+		WHERE ReferenceNo = @ReferenceNo
+			AND SerialNo = @SerialNo
+			AND WorkflowStageCode = @WorkflowStageCode
+
 		IF(@WorkflowStageCode = 'SCSQAP') --Sub Claim Section QA Process
 		BEGIN
 			DECLARE @SubClaimSectionID varchar(100),
@@ -30,9 +49,7 @@ BEGIN
 				@IsClaimInterim varchar(5),
 				@ClaimCommercialDepartmentHeadUser varchar(25),
 				@RevisionNo bigint,
-				@LogIDHeadUser dbo.value,
-				@CanvasName varchar(100),
-				@WorkflowStageDescription varchar(50)
+				@LogIDHeadUser dbo.value
 			
 			SET @IsNeedQA = 'True'
 			SET @IsDocumentCompleted = 'True'
@@ -64,16 +81,7 @@ BEGIN
 			EXEC Claim.usp_RetrieveClaimCommercialDeptHeadBySubClaimSectionNo @SubClaimSectionNo = @ReferenceNo
 			
 			select @ClaimCommercialDepartmentHeadUser = value1 FROM @LogIDHeadUser
-
-			--Additional data field
-			DECLARE @TempDataField as TABLE
-			(
-				ReferenceNo varchar(50),
-				SerialNo varchar(10),
-				DataFieldName varchar(255),
-				DataFieldValue varchar(max)
-			)
-
+			
 			INSERT INTO @TempDataField
 			VALUES 
 			(@ReferenceNo,@SerialNo,'SubClaimSectionID',@SubClaimSectionID),
@@ -83,6 +91,7 @@ BEGIN
 			(@ReferenceNo,@SerialNo,'IsClaimInterim',@IsClaimInterim),
 			(@ReferenceNo,@SerialNo,'ClaimCommercialDepartmentHeadUser',@ClaimCommercialDepartmentHeadUser)
 
+			--Merge to Claim.WTWorkflowDataField
 			MERGE Claim.WTWorkflowDataField AS TARGET
 			USING @TempDataField AS SOURCE ON TARGET.ReferenceNo = SOURCE.ReferenceNo 
 												AND TARGET.SerialNo = SOURCE.SerialNo
@@ -94,6 +103,41 @@ BEGIN
 			WHEN MATCHED THEN 
 				UPDATE SET TARGET.DataFieldValue = SOURCE.DataFieldValue;
 
+		END
+		ELSE IF (@WorkflowStageCode = 'LNCREA') --Create LN
+		BEGIN
+			--Add datafield IsAutoCreateEstimation = False (default)
+			INSERT INTO @TempDataField
+			VALUES (@ReferenceNo,@SerialNo,'IsAutoCreateEstimation','False')	
+			
+			INSERT INTO Claim.WTWorkflowDataField (ReferenceNo, SerialNo, CanvasName, WorkflowStageCode, WorkflowStageDescription, DataFieldName, DataFieldValue, CreatedBy, CreateDate, RowStatus)
+			SELECT ReferenceNo
+				,SerialNo
+				,@CanvasName
+				,@WorkflowStageCode
+				,@WorkflowStageDescription
+				,DataFieldName
+				,DataFieldValue
+				,'System'
+				,GETDATE()
+				,0
+			FROM @TempDataField T
+			WHERE NOT EXISTS (
+					SELECT 1
+					FROM Claim.WTWorkflowDataField
+					WHERE ReferenceNo = T.ReferenceNo
+						AND SerialNo = T.SerialNo
+						AND DataFieldName = T.DataFieldName
+						AND RowStatus = 0
+					)
+
+			--Update value = 0 untuk field name RevisionNo jika value kosong
+			UPDATE Claim.WTWorkflowDataField
+			SET DataFieldValue = '0'
+			WHERE ReferenceNo = @ReferenceNo
+				AND SerialNo = @SerialNo
+				AND DataFieldName = 'RevisionNo'
+				AND LEN(LTRIM(RTRIM(DataFieldValue))) = 0
 		END
 	END
 	
