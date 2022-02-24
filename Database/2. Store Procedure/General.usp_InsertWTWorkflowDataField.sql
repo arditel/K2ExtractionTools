@@ -10,24 +10,18 @@
 ---- Create date: 2021/11/8
 ---- Description:	Insert to PolicyInsurance.WTWorkflowDataField or Claim.WTWorkflowDataField #0248URF2021
 ---- =============================================
---ALTER PROCEDURE General.usp_InsertWTWorkflowDataField
-BEGIN TRAN
-update Claim.WTWorkflowTaskData set serialno = '186791_37' where WTWorkflowTaskDataID = 5
-update Claim.WTWorkflowDataPIC  set serialno = '186791_37' where WTWorkflowDataPICID = 6
-
-DECLARE
+CREATE PROCEDURE General.usp_InsertWTWorkflowDataField
 	-- Add the parameters for the stored procedure here
-	@ReferenceNo Varchar(50) = '1800NHI00',
-	@SerialNo varchar(10) = '186791_37',
-	@CanvasName varchar(100) = 'Claim Process',
-	@WorkflowStageCode varchar(8) = 'CLMUEA',
-	@WorkflowStageDescription varchar(50) = 'Claim Unattached Approval',
-	@DataFieldName varchar(255) = 'ReferenceNo',
-	@DataFieldValue varchar(max) = '1800NHI00',
-	@WorkflowType varchar(20) = 'Claim'
---AS
+	@ReferenceNo Varchar(50),
+	@SerialNo varchar(10),
+	@CanvasName varchar(100),
+	@WorkflowStageCode varchar(8),
+	@WorkflowStageDescription varchar(50),
+	@DataFieldName varchar(255),
+	@DataFieldValue varchar(max),
+	@WorkflowType varchar(20)
+AS
 BEGIN
-
 	IF(@WorkflowType = 'Policy')
 	BEGIN
 		DECLARE @WorkflowStageDescriptionPolicy VARCHAR(50)
@@ -59,13 +53,7 @@ BEGIN
 		BEGIN				
 			SET @WorkflowStageCode = 'SCSSPC'
 			SET @WorkflowStageDescription = 'Print SPC'
-		END
-
-		select 'test',1 from Claim.WTWorkflowDataField 
-												where SerialNo = @SerialNo 
-													and CanvasName = @CanvasName
-													and DataFieldName = @DataFieldName
-													and DataFieldValue = @DataFieldValue
+		END	
 
 		--case claim unattached
 		IF(@WorkflowStageCode = 'CLMUEA' 
@@ -80,8 +68,6 @@ BEGIN
 			from Claim.WTWorkflowTaskData 
 			where SerialNo = @SerialNo AND WorkflowStageCode = 'CLMPRC'
 		END
-
-select @WorkflowStageCode '@WorkflowStageCode', @WorkflowStageDescription '@WorkflowStageDescription'
 
 		DECLARE @EnumOfClaimTypeCode varchar(10),
 				@isInsertTaskData bit = 1
@@ -111,10 +97,7 @@ select @WorkflowStageCode '@WorkflowStageCode', @WorkflowStageDescription '@Work
 	END
 	
 END
+GO
 
-select * from Claim.WTWorkflowDataField where ReferenceNo = '1800NHI00'
-
-ROLLBACK TRAN
-
---GRANT EXEC ON General.usp_InsertWTWorkflowDataField TO PUBLIC
---GO
+GRANT EXEC ON General.usp_InsertWTWorkflowDataField TO PUBLIC
+GO
