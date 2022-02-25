@@ -160,13 +160,45 @@ BEGIN
 			SET @i = @i + 1
 		END
 
-		--case claim unattached jika Actor lebih dari 1 user, maka ambil 1 user saja
-		update #tmpWF_Claim 
-		set Actor = CASE WHEN CHARINDEX(';',Actor) > 0 
-						THEN convert(varchar(50),left(Actor, CHARINDEX(';',Actor)-1 )) 
-						ELSE Actor 
-					END 
-		where WorkflowStage = 'Claim Unattached Approval'
+		--retrieve user claim unattached
+		DECLARE @UserClaimUnattached [dbo].[IDValues],
+			@Actors varchar(512),
+			@iteration int,
+			@countClaimUnattachedActor int
+
+		SET @iteration = 1
+		SET @countClaimUnattachedActor = 0
+
+		select @Actors = Actor from #tmpWF_Claim where WorkFlowStage = 'Claim Unattached Approval'
+
+		insert into @UserClaimUnattached
+		select ROW_NUMBER() OVER(order by [Data]), [Data] from General.udf_SplitString(@Actors,';')
+
+		--breakdown user claim unattached in #tmpWF_Claim
+		select @countClaimUnattachedActor = COUNT(1) from @UserClaimUnattached
+
+		WHILE(@iteration <= @countClaimUnattachedActor)
+		BEGIN
+			IF @iteration = 1 -- jika iteration = 1, maka update data actor yg sudah ada
+			BEGIN
+				update #tmpWF_Claim 
+				set Actor = (SELECT [Value] FROM @UserClaimUnattached where ID = 1)
+				where WorkflowStage = 'Claim Unattached Approval'
+			END
+			ELSE --insert data actor
+			BEGIN
+				insert into #tmpWF_Claim (WorkFlowTaskAssignmentID, WorkFlowAssignmentStatusCode,Actor,WorkFlowStage,WTACreatedDate)
+				select TOP 1 WorkFlowTaskAssignmentID,
+						WorkFlowAssignmentStatusCode,
+					   ( select [Value] from @UserClaimUnattached where ID = @iteration ) as Actor,
+					   WorkFlowStage,
+					   WTACreatedDate
+				from #tmpWF_Claim 
+				where WorkFlowStage = 'Claim Unattached Approval'
+			END
+
+			SET @iteration = @iteration + 1;
+		END
 
 		--Retrieve data jika worklist terakhir adalah Open maka ambil Actor yg open, jika bukan ambil actor terakhir yg assign
 		;with cte_Last as

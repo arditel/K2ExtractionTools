@@ -68,21 +68,42 @@ BEGIN
 			from Claim.WTWorkflowTaskData 
 			where SerialNo = @SerialNo AND WorkflowStageCode = 'CLMPRC'
 		END		
-				
-		insert Claim.WTWorkflowDataField
-		(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,DataFieldName,DataFieldValue,CreatedBy,CreateDate)
-		VALUES 
-		(
-			@ReferenceNo,
-			@SerialNo,
-			@CanvasName,
-			@WorkflowStageCode,
-			@WorkflowStageDescription,
-			@DataFieldName,
-			@DataFieldValue,
-			'System',
-			GETDATE()
-		)			
+		
+		IF NOT EXISTS (
+				SELECT 1
+				FROM Claim.WTWorkflowDataField
+				WHERE ReferenceNo = @ReferenceNo
+					AND SerialNo = @SerialNo
+					AND CanvasName = @CanvasName
+					AND WorkflowStageCode = @WorkflowStageCode
+					AND WorkflowStageDescription = @WorkflowStageDescription
+					AND DataFieldName = @DataFieldName
+					AND DataFieldValue = @DataFieldValue
+				)
+		BEGIN
+			INSERT Claim.WTWorkflowDataField (
+				ReferenceNo
+				,SerialNo
+				,CanvasName
+				,WorkflowStageCode
+				,WorkflowStageDescription
+				,DataFieldName
+				,DataFieldValue
+				,CreatedBy
+				,CreateDate
+				)
+			VALUES (
+				@ReferenceNo
+				,@SerialNo
+				,@CanvasName
+				,@WorkflowStageCode
+				,@WorkflowStageDescription
+				,@DataFieldName
+				,@DataFieldValue
+				,'System'
+				,GETDATE()
+				)
+		END
 	END
 	
 END
