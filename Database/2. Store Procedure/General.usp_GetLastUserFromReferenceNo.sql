@@ -98,26 +98,11 @@ BEGIN
 				AND WorkFlowStage = 'Claim Process'
 				AND WorkFlowAssignmentStatusCode = 'OUTST'
 				order by WorkFlowTaskAssignmentID
-			),
-			CTE_ClaimUnAttachedHasBeenAttached AS
-			(
-				select TMP.WorkFlowTaskAssignmentID 
-				FROM #tmpWF_Claim TMP
-				INNER JOIN Claim.WorkFlowTaskAssignment WTA on TMP.WorkFlowTaskAssignmentID = WTA.WorkFlowTaskAssignmentID
-				INNER JOIN Claim.WorkFlowTask WT on WT.WorkFlowTaskID = WTA.WorkFlowTaskID
-				INNER JOIN Claim.Claims C on C.ClaimNo = WT.ReferenceNo
-				WHERE C.EnumOfClaimTypeCode = 'ATT'
-				AND WTA.RowStatus = 0
-				AND WT.RowStatus = 0
-				AND C.RowStatus = 0
-				AND TMP.WorkFlowStage = 'Claim Unattached Approval'
-			)
+			)			
 			insert into @ClaimProcessUnAttached
 			select * from CTE
 			UNION ALL
-			select * from CTE_ClaimProcessUnAttachedOutstage
-			UNION ALL
-			select * from CTE_ClaimUnAttachedHasBeenAttached
+			select * from CTE_ClaimProcessUnAttachedOutstage		
 
 			SET @j = @j + 1;
 		END

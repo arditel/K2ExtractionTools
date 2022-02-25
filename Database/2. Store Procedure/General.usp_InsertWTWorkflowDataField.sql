@@ -67,33 +67,22 @@ BEGIN
 					@WorkflowStageDescription = 'Claim Process'
 			from Claim.WTWorkflowTaskData 
 			where SerialNo = @SerialNo AND WorkflowStageCode = 'CLMPRC'
-		END
-
-		DECLARE @EnumOfClaimTypeCode varchar(10),
-				@isInsertTaskData bit = 1
-
-		select @EnumOfClaimTypeCode  = EnumOfClaimTypeCode from Claim.Claims where ClaimNo = @ReferenceNo
-
-		IF (@EnumOfClaimTypeCode = 'ATT' AND @WorkflowStageCode = 'CLMUEA')
-			SET @isInsertTaskData = 0
-
-		IF (@isInsertTaskData = 1 )
-		BEGIN
-			insert Claim.WTWorkflowDataField
-			(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,DataFieldName,DataFieldValue,CreatedBy,CreateDate)
-			VALUES 
-			(
-				@ReferenceNo,
-				@SerialNo,
-				@CanvasName,
-				@WorkflowStageCode,
-				@WorkflowStageDescription,
-				@DataFieldName,
-				@DataFieldValue,
-				'System',
-				GETDATE()
-			)	
-		END
+		END		
+				
+		insert Claim.WTWorkflowDataField
+		(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,DataFieldName,DataFieldValue,CreatedBy,CreateDate)
+		VALUES 
+		(
+			@ReferenceNo,
+			@SerialNo,
+			@CanvasName,
+			@WorkflowStageCode,
+			@WorkflowStageDescription,
+			@DataFieldName,
+			@DataFieldValue,
+			'System',
+			GETDATE()
+		)			
 	END
 	
 END

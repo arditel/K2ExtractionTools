@@ -166,17 +166,17 @@ BEGIN
 			SET @WorkflowStage = 'Print SPC'
 		END
 
-		DECLARE @isClaimUnattached bit,
-			@EnumOfClaimTypeCode varchar(10)
+		DECLARE @isClaimUnattached bit
+			--@EnumOfClaimTypeCode varchar(10)
 		SET @isClaimUnattached = 0
 
-		select @EnumOfClaimTypeCode  = EnumOfClaimTypeCode from Claim.Claims where ClaimNo = @ReferenceNo
+		--select @EnumOfClaimTypeCode  = EnumOfClaimTypeCode from Claim.Claims where ClaimNo = @ReferenceNo
 
 		select @isClaimUnattached = 1
 		FROM Claim.WTWorkflowTaskData 
 		where ReferenceNo = @ReferenceNo and CanvasName = 'Claim Process' 
 		AND exists (select 1 from Claim.WTWorkflowTaskData where WorkflowStageCode = 'CLMPRC' and ReferenceNo = @ReferenceNo)
-		AND @EnumOfClaimTypeCode <> 'ATT'
+		--AND @EnumOfClaimTypeCode <> 'ATT'
 		
 		--case claim unattached WorkflowStage yg pertama diproses adalah stage CLMPRC
 		IF (@isClaimUnattached = 0 AND @CanvasName = 'Claim Process')
@@ -211,19 +211,10 @@ BEGIN
 			WHERE WTWorkflowTaskDataID = @WTWorkflowTaskDataID
 		END
 		ELSE IF NOT EXISTS (select 1 FROM Claim.WTWorkflowTaskData where ReferenceNo = @ReferenceNo and WorkflowStageDescription = @WorkflowStage)
-		BEGIN
-			DECLARE @isInsertTaskData bit
-			SET @isInsertTaskData = 1
-
-			IF (@EnumOfClaimTypeCode = 'ATT' AND @WorkflowStageOri = 'Claim Unattached Approval')
-				SET @isInsertTaskData = 0
-
-			IF (@isInsertTaskData = 1 )
-			BEGIN
-				INSERT Claim.WTWorkflowTaskData (ReferenceNo, SerialNo, CanvasName, WorkflowStageCode, WorkflowStageDescription, Folio, Originator, Status, StartDate, IsProcess, CreatedBy,CreateDate,RowStatus)
-				VALUES
-				( @ReferenceNo, @SerialNo, @CanvasName, @WorkflowStageCode, @WorkflowStage, @Folio, @Originator, @Status, @SubmitDate, 1, 'System',GETDATE(),0)
-			END
+		BEGIN			
+			INSERT Claim.WTWorkflowTaskData (ReferenceNo, SerialNo, CanvasName, WorkflowStageCode, WorkflowStageDescription, Folio, Originator, Status, StartDate, IsProcess, CreatedBy,CreateDate,RowStatus)
+			VALUES
+			( @ReferenceNo, @SerialNo, @CanvasName, @WorkflowStageCode, @WorkflowStage, @Folio, @Originator, @Status, @SubmitDate, 1, 'System',GETDATE(),0)			
 		END
 
 		--INSERT WTWORKFLOWDATAPIC
@@ -267,33 +258,18 @@ BEGIN
 					AND @WorkflowStageOri = 'Claim Process'
 					AND WorkFlowAssignmentStatusCode = 'OUTST'
 					order by WorkFlowTaskAssignmentID
-				),
-				CTE_ClaimUnAttachedHasBeenAttached AS
-				(
-					select TMP.WorkFlowTaskAssignmentID 
-					FROM #tmpWF_Claim TMP
-					INNER JOIN Claim.WorkFlowTaskAssignment WTA on TMP.WorkFlowTaskAssignmentID = WTA.WorkFlowTaskAssignmentID
-					INNER JOIN Claim.WorkFlowTask WT on WT.WorkFlowTaskID = WTA.WorkFlowTaskID
-					INNER JOIN Claim.Claims C on C.ClaimNo = WT.ReferenceNo
-					WHERE C.EnumOfClaimTypeCode = 'ATT'
-					AND WTA.RowStatus = 0
-					AND WT.RowStatus = 0
-					AND C.RowStatus = 0
-					AND @WorkflowStageOri = 'Claim Unattached Approval'
-				)
+				)				
 				insert into @ClaimProcessUnAttached
 				select * from CTE
 				UNION ALL
-				select * from CTE_ClaimProcessUnAttachedOutstage
-				UNION ALL
-				select * from CTE_ClaimUnAttachedHasBeenAttached
+				select * from CTE_ClaimProcessUnAttachedOutstage				
 
 				SET @j = @j + 1;
 			END
 
 			delete #tmpWF_Claim
 			where WorkFlowTaskAssignmentID in (select id from @ClaimProcessUnAttached)
-		--END kondisi claim unattached
+			--END kondisi claim unattached
 
 			--ambil workflow terakhir sebelum assigned
 			select Top 1 @tmpID = WorkflowTaskAssignmentID
