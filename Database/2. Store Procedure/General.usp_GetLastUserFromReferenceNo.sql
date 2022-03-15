@@ -172,7 +172,9 @@ BEGIN
 		select @Actors = Actor from #tmpWF_Claim where WorkFlowStage = 'Claim Unattached Approval'
 
 		insert into @UserClaimUnattached
-		select ROW_NUMBER() OVER(order by [Data]), [Data] from General.udf_SplitString(@Actors,';')
+		select ROW_NUMBER() OVER(order by [Data]), [Data] 
+		from General.udf_SplitString(@Actors,';')
+		where ISNULL(@Actors,'') <> ''
 
 		--breakdown user claim unattached in #tmpWF_Claim
 		select @countClaimUnattachedActor = COUNT(1) from @UserClaimUnattached
