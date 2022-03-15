@@ -365,6 +365,13 @@ BEGIN
 			and OOF.ActiveStatusID = 1
 			and OOF.RowStatus = 0
 
+			--Insert pic user k2admin untuk CLMPRC dan CLMUEA
+			IF (@CanvasName = 'Claim Process' AND (@WorkflowStageCode = 'CLMPRC' OR @WorkflowStageCode = 'CLMUEA'))
+			BEGIN
+				insert #tmpASS_Claim
+				values (CONCAT(@DomainPrefix,'k2admin'))
+			END
+
 			--Insert ke table Policyinsurance.WTWorkflowDataPIC
 			INSERT Claim.WTWorkflowDataPIC
 			(ReferenceNo,SerialNo,CanvasName,WorkflowStageCode,WorkflowStageDescription,PICUser,IsOpen,CreatedBy,CreateDate)
